@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PD Parameter Database</title>
 
-  <!-- DataTables -->
+  <!-- DataTables core + extensions -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
@@ -19,31 +19,32 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
-
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
     :root{
-      --bg:#070a16;
+      --bg1:#0b1020;
+      --bg2:#0b1220;
       --card: rgba(255,255,255,0.92);
+      --card2: rgba(255,255,255,0.10);
       --stroke: rgba(255,255,255,0.20);
       --text:#0b1220;
+      --muted: rgba(11,18,32,0.65);
       --shadow: 0 18px 45px rgba(0,0,0,0.25);
       --r: 18px;
-      --p:#7c3aed; /* purple */
-      --c:#06b6d4; /* cyan */
-      --g:#22c55e; /* green */
-      --o:#f59e0b; /* orange */
+      --p: #7c3aed; /* purple */
+      --c: #06b6d4; /* cyan */
+      --g: #22c55e; /* green */
+      --o: #f59e0b; /* orange */
     }
-
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       background:
-        radial-gradient(1100px 600px at 10% 10%, rgba(124,58,237,0.33), transparent 55%),
-        radial-gradient(900px 500px at 90% 15%, rgba(6,182,212,0.26), transparent 55%),
-        radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.18), transparent 60%),
-        linear-gradient(180deg, #090c1d, var(--bg));
+        radial-gradient(1100px 600px at 10% 10%, rgba(124,58,237,0.35), transparent 55%),
+        radial-gradient(900px 500px at 90% 15%, rgba(6,182,212,0.28), transparent 55%),
+        radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.20), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
       color: white;
     }
     .wrap{ max-width: 1240px; margin: 0 auto; padding: 26px 16px 46px; }
@@ -93,10 +94,14 @@
       gap: 12px;
     }
     @media (min-width: 980px){
-      .controls{ grid-template-columns: 1.2fr 1fr 1fr 0.9fr; align-items:end; }
+      .controls{ grid-template-columns: 1.2fr 1fr 1fr 1fr; align-items:end; }
       .controls .wide{ grid-column: span 4; }
     }
-    label{ display:block; font-size: 12px; color: rgba(255,255,255,0.86); margin-bottom: 6px; }
+    label{
+      display:block; font-size: 12px;
+      color: rgba(255,255,255,0.86);
+      margin-bottom: 6px;
+    }
     .field input, .field select, .field button{
       width: 100%;
       padding: 10px 12px;
@@ -130,7 +135,8 @@
     }
     .pad{ padding: 12px 12px 6px; }
 
-    /* DataTables look */
+    /* DataTables visual tweaks */
+    table.dataTable{ width:100% !important; }
     table.dataTable thead th{
       white-space: nowrap;
       background: linear-gradient(135deg, rgba(124,58,237,0.14), rgba(6,182,212,0.10));
@@ -138,9 +144,9 @@
       color: #0b1220;
     }
 
-    /* TOP filter row in header */
+    /* Top filter row (2nd header row) */
     #tbl thead tr.filters th{
-      background: rgba(255,255,255,0.96);
+      background: rgba(255,255,255,0.95);
       padding: 8px 10px !important;
       border-bottom: 1px solid rgba(0,0,0,0.08) !important;
     }
@@ -156,7 +162,7 @@
       background: #fff;
     }
 
-    /* Global search + export buttons */
+    /* Buttons + search */
     .dataTables_wrapper .dataTables_filter input{
       border-radius: 999px;
       border: 1px solid rgba(0,0,0,0.15);
@@ -176,29 +182,16 @@
       background: linear-gradient(135deg, rgba(124,58,237,0.16), rgba(6,182,212,0.14)) !important;
     }
 
-    /* Nice hover */
-    table.dataTable tbody tr:hover{ background: rgba(6,182,212,0.08) !important; }
-
-    /* Link style */
+    /* Links */
     a{ color: #4f46e5; text-decoration: none; font-weight: 650; }
     a:hover{ text-decoration: underline; }
 
-    /* Small tag pills for Drug/Species */
-    .pill{
-      display:inline-block;
-      padding: 3px 9px;
-      border-radius: 999px;
-      background: rgba(124,58,237,0.12);
-      border: 1px solid rgba(124,58,237,0.22);
-      font-size: 12px;
-      color: #1f1147;
-      font-weight: 650;
+    /* Make row hover nicer */
+    table.dataTable tbody tr:hover{
+      background: rgba(6,182,212,0.08) !important;
     }
-    .pill2{
-      background: rgba(6,182,212,0.10);
-      border: 1px solid rgba(6,182,212,0.22);
-      color: #063641;
-    }
+
+    .miniHint{ margin-top: 10px; font-size: 12px; color: var(--muted); }
   </style>
 </head>
 
@@ -211,7 +204,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Showing: PMCID • Drug • Parameter • Value • Unit • Species (all filters on top)</div>
+          <div class="sub">Beautiful searchable PD table on GitHub Pages • PMCID links • per-column filters on top • exports</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -227,18 +220,23 @@
       </div>
 
       <div class="field">
-        <label>Quick filter: Drug</label>
+        <label>Quick filter: Drug_Name</label>
         <select id="drugQuick"><option value="">All drugs</option></select>
       </div>
 
       <div class="field">
-        <label>Quick filter: Species</label>
+        <label>Quick filter: Target_Species</label>
         <select id="speciesQuick"><option value="">All species</option></select>
       </div>
 
       <div class="field">
-        <label>&nbsp;</label>
+        <label>Quick filter: Parameter_Name</label>
+        <select id="paramQuick"><option value="">All parameters</option></select>
+      </div>
+
+      <div class="field wide">
         <button id="clearAll">Clear all filters</button>
+        <div class="miniHint">Tip: Use the small filter boxes directly under the column titles for precise filtering.</div>
       </div>
     </div>
   </div>
@@ -256,20 +254,20 @@
 
 <script>
 (function () {
+  // Expect/normalize these columns (Drug_Name will be created if missing)
   const COLS = {
     pmcid: "PMCID",
     drug: "Drug_Name",
     param: "Parameter_Name",
+    valueType: "Value_Type",
     value: "Parameter_Value",
     unit: "Parameter_Unit",
-    species: "Target_Species"
+    species: "Target_Species",
+    strain: "Species_Strain"
   };
 
-  // Show ONLY these columns in this exact order
-  const SHOW = [COLS.pmcid, COLS.drug, COLS.param, COLS.value, COLS.unit, COLS.species];
-
-  // Dropdown filters on top for categorical cols
-  const DROPDOWN_FILTER_COLS = new Set([COLS.drug, COLS.param, COLS.unit, COLS.species]);
+  // Categorical columns get dropdown filters in the header filter row
+  const DROPDOWN_FILTER_COLS = new Set([COLS.drug, COLS.param, COLS.valueType, COLS.unit, COLS.species, COLS.strain]);
 
   function toNumber(x) {
     if (x === null || x === undefined) return NaN;
@@ -291,16 +289,12 @@
     return v;
   }
 
-  function escHtml(s){
-    return $('<div>').text(s ?? "").html();
-  }
-
   function uniqueSorted(arr) {
     return Array.from(new Set(arr.map(x => (x ?? "").toString().trim()).filter(Boolean)))
       .sort((a,b)=>a.localeCompare(b));
   }
 
-  // Numeric range filter for Parameter_Value
+  // Numeric range filter
   $.fn.dataTable.ext.search.push(function (settings, data) {
     const min = toNumber(document.getElementById("minVal").value);
     const max = toNumber(document.getElementById("maxVal").value);
@@ -322,13 +316,13 @@
     header: true,
     skipEmptyLines: true,
     complete: function (results) {
-      let rows = (results.data || []).filter(r =>
+      const rows = (results.data || []).filter(r =>
         Object.values(r).some(v => (v ?? "").toString().trim() !== "")
       );
 
       if (!rows.length) return;
 
-      // Fill-down PMCID if blank (Excel merged behavior)
+      // Fill-down PMCID like Excel merged cells
       let lastPMCID = "";
       rows.forEach(r => {
         const v = (r[COLS.pmcid] ?? "").toString().trim();
@@ -336,36 +330,35 @@
         else r[COLS.pmcid] = lastPMCID;
       });
 
-      // Ensure required columns exist even if missing
+      // Ensure Drug_Name column exists (even if missing in CSV)
       rows.forEach(r => {
-        SHOW.forEach(k => { if (!(k in r)) r[k] = ""; });
+        if (!(COLS.drug in r)) r[COLS.drug] = "";
       });
 
-      // Keep only needed columns (drop everything else)
-      rows = rows.map(r => {
-        const o = {};
-        SHOW.forEach(k => o[k] = r[k]);
-        return o;
-      });
+      // Choose header order (nice consistent order)
+      const preferredOrder = [
+        COLS.pmcid, COLS.drug, COLS.param, COLS.valueType, COLS.value, COLS.unit, COLS.species, COLS.strain
+      ];
+      const csvHeaders = Object.keys(rows[0]);
+      const headers = preferredOrder.filter(h => csvHeaders.includes(h) || h === COLS.drug)
+        .concat(csvHeaders.filter(h => !preferredOrder.includes(h)));
 
-      // Build columns + render pills
-      const columns = SHOW.map(h => ({
+      const columns = headers.map(h => ({
         title: h,
         data: h,
-        render: function (data) {
+        render: function (data, type, row) {
           if (h === COLS.pmcid) return pmcLink(data);
-          if (h === COLS.drug && String(data||"").trim()) return `<span class="pill">${escHtml(data)}</span>`;
-          if (h === COLS.species && String(data||"").trim()) return `<span class="pill pill2">${escHtml(data)}</span>`;
-          return escHtml(data);
+          return (data ?? "").toString();
         }
       }));
 
-      // Build THEAD: titles + top filter row
+      // Build THEAD with 2 rows: titles + filters (TOP only)
       const $titleRow = $("<tr/>");
       const $filterRow = $("<tr class='filters'/>");
 
-      SHOW.forEach(h => {
+      headers.forEach(h => {
         $titleRow.append(`<th>${h}</th>`);
+
         if (DROPDOWN_FILTER_COLS.has(h)) {
           $filterRow.append(`<th><select data-col="${h}"><option value="">All</option></select></th>`);
         } else {
@@ -390,10 +383,10 @@
           { extend: "print", title: "pd-parameter-database" }
         ],
         orderCellsTop: true,
-        order: [[0, "asc"]]
+        order: [[ Math.max(headers.indexOf(COLS.pmcid), 0), "asc" ]]
       });
 
-      // Count badge
+      // Row count badge
       const updateCount = () => {
         const n = table.rows({ filter: "applied" }).count();
         document.getElementById("rowCount").textContent = `${n} rows`;
@@ -401,20 +394,20 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // Populate dropdowns in header filter row
-      SHOW.forEach((h, idx) => {
+      // Populate dropdown filters in TOP filter row
+      headers.forEach((h, idx) => {
         if (!DROPDOWN_FILTER_COLS.has(h)) return;
         const col = table.column(idx);
         const values = uniqueSorted(col.data().toArray());
         const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
-        values.forEach(v => $select.append(`<option value="${escHtml(v)}">${escHtml(v)}</option>`));
+        values.forEach(v => $select.append(`<option value="${$("<div>").text(v).html()}">${v}</option>`));
       });
 
-      // Hook top per-column filters
+      // Per-column filter logic (TOP only)
       table.columns().every(function () {
         const col = this;
         const idx = col.index();
-        const h = SHOW[idx];
+        const h = headers[idx];
 
         const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
         if ($select.length) {
@@ -432,9 +425,9 @@
         }
       });
 
-      // Quick dropdowns (top panel)
-      function setQuick(selectId, colName) {
-        const idx = SHOW.indexOf(colName);
+      // Quick dropdowns in the big control panel
+      function setQuickOptions(selectId, colName) {
+        const idx = headers.indexOf(colName);
         if (idx === -1) return;
         const col = table.column(idx);
         const values = uniqueSorted(col.data().toArray());
@@ -450,25 +443,30 @@
           col.search(val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "", true, false).draw();
         });
       }
-      setQuick("drugQuick", COLS.drug);
-      setQuick("speciesQuick", COLS.species);
 
-      // Range inputs
+      setQuickOptions("drugQuick", COLS.drug);
+      setQuickOptions("speciesQuick", COLS.species);
+      setQuickOptions("paramQuick", COLS.param);
+
+      // Numeric range inputs
       document.getElementById("minVal").addEventListener("input", () => table.draw());
       document.getElementById("maxVal").addEventListener("input", () => table.draw());
 
-      // Clear all
+      // Clear all filters (TOP + global + range + quick)
       document.getElementById("clearAll").addEventListener("click", () => {
         table.search("");
         table.columns().search("");
 
+        // Clear header filter row
         $("#tbl thead tr.filters input").val("");
         $("#tbl thead tr.filters select").val("");
 
+        // Clear quick + range
         document.getElementById("minVal").value = "";
         document.getElementById("maxVal").value = "";
         document.getElementById("drugQuick").value = "";
         document.getElementById("speciesQuick").value = "";
+        document.getElementById("paramQuick").value = "";
 
         table.draw();
       });
