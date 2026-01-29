@@ -1,0 +1,73 @@
+﻿PMCID,Parameter_Name,Value_Type,Parameter_Value,Parameter_Unit,Target_Species,Species_Strain,Genotype_Status,Drug_Name,Drug_Concentration,Drug_Concentration_Unit,Exposure_Time,Exposure_Time_Unit,Administration_Frequency,Dose_Amount_Per_Administration,Dose_Amount_Unit,Experiment_Type
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,12.5,ppm (available chlorine),Staphylococcus aureus,ATCC 6538,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),12.5,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,12.5,ppm (available chlorine),Escherichia coli,ATCC 11229,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),12.5,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Pseudomonas aeruginosa,NA,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,12.5,ppm (available chlorine),Streptococcus lactis,ATCC 7962,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),12.5,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Aerobacter aerogenes,ATCC 7256,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Proteus vulgaris,ATCC 4669,Wild type,Inorganic bromide–hypochlorite bactericide (2% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Staphylococcus aureus,ATCC 6538,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Escherichia coli,ATCC 11229,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,3.125,ppm (available chlorine),Pseudomonas aeruginosa,NA,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),3.125,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Streptococcus lactis,ATCC 7962,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,6.25,ppm (available chlorine),Aerobacter aerogenes,ATCC 7256,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),6.25,ppm,30,sec,Single,NA,NA,In vitro
+PMC1057910,Minimal killing concentration (99.999% kill),Exact,3.125,ppm (available chlorine),Proteus vulgaris,ATCC 4669,Wild type,Organic bromide–hypochlorite bactericide (8% KBr),3.125,ppm,30,sec,Single,NA,NA,In vitro
+PMC10060419,Minimum Inhibitory Concentration (MIC),Exact value,3,mg/ml,Pseudomonas aeruginosa,ATCC 27853 and PA1–PA6,Wild type,Zinc oxide nanoparticles (ZnO NPs),3,mg/ml,24,h,NA,NA,NA,In vitro
+PMC10060419,Minimum Bactericidal Concentration (MBC),Exact value,6,mg/ml,Pseudomonas aeruginosa,ATCC 27853 and PA1–PA6,Wild type,Zinc oxide nanoparticles (ZnO NPs),6,mg/ml,24,h,NA,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Staphylococcus aureus,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Escherichia coli,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Salmonella spp.,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Candida spp.,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,48–72,h,Single,NA,NA,In vitro
+PMC12238237,MBC,Exact,500,mg/mL,Staphylococcus aureus,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MBC,Exact,100,mg/mL,Salmonella spp.,Clinical isolate,Wild type,Jatropha variegata stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,400,mg/mL,Staphylococcus aureus,Clinical isolate,Wild type,Jatropha variegata leaf extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,500,mg/mL,Pseudomonas aeruginosa,Clinical isolate,Wild type,Jatropha variegata leaf extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Escherichia coli,Clinical isolate,Wild type,Jatropha variegata leaf extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Salmonella spp.,Clinical isolate,Wild type,Jatropha variegata leaf extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Candida spp.,Clinical isolate,Wild type,Jatropha variegata leaf extract,NA,NA,48–72,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Staphylococcus aureus,Clinical isolate,Wild type,Jatropha variegata leaf + stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Escherichia coli,Clinical isolate,Wild type,Jatropha variegata leaf + stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,100,mg/mL,Pseudomonas aeruginosa,Clinical isolate,Wild type,Jatropha variegata leaf + stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,400,mg/mL,Salmonella spp.,Clinical isolate,Wild type,Jatropha variegata leaf + stem extract,NA,NA,24,h,Single,NA,NA,In vitro
+PMC12238237,MIC,Exact,400,mg/mL,Candida spp.,Clinical isolate,Wild type,Jatropha variegata leaf + stem extract,NA,NA,48–72,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Escherichia coli,ATCC 35218,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Escherichia coli,ATCC 35218,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Escherichia coli,ATCC 35218,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Escherichia coli,ATCC 35218,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.02,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.02,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.02,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MIC,Exact,0.02,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Escherichia coli,ATCC 35218,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Escherichia coli,ATCC 35218,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Escherichia coli,ATCC 35218,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Escherichia coli,ATCC 35218,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,0.2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Staphylococcus aureus,ATCC 29213,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,0.2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,0.2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Klebsiella pneumoniae,ATCC 7000603,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,ZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,BaZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,RuZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC9740921,MBC,Exact,0.2,mg/mL,Pseudomonas aeruginosa,ATCC 27853,Wild type,CrZnO,NA,NA,Overnight,h,Single,NA,NA,In vitro
+PMC12124795,MIC,Mean ± SE,5.88 ± 1.90,mg/ml,Pseudomonas aeruginosa,NA,Multidrug-resistant,Clove essential oil,NA,NA,24,hour,Single,NA,NA,In vitro
+PMC12124795,MBC,Mean ± SE,11.75 ± 3.81,mg/ml,Pseudomonas aeruginosa,NA,Multidrug-resistant,Clove essential oil,NA,NA,24,hour,Single,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,1,µg/mL,Escherichia coli,K-12 DH5(pPCR-Script Amp SK),Mutant (ampicillin-resistant),AuNP-AMP,1,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Range,2–4,µg/mL,Pseudomonas aeruginosa,Clinical isolate,Mutant (ampicillin-resistant),AuNP-AMP,2–4,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,4,µg/mL,Staphylococcus aureus,ST398 (MRSA),Mutant (methicillin-resistant),AuNP-AMP,4,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,4,µg/mL,Escherichia coli,K-12 DH5,Wild type (ampicillin-sensitive),AgNP,4,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,20,µg/mL,Vibrio cholerae,TRH7000,Mutant (nontoxigenic),AgNP,20,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,1,µg/mL,Escherichia coli,K-12 DH5(pPCR-Script Amp SK),Mutant (ampicillin-resistant),AgNP-AMP,1,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Minimal bactericidal concentration (MBC),Exact,2,µg/mL,Vibrio cholerae,TRH7000,Mutant (nontoxigenic),AgNP-AMP,2,µg/mL,18,h,Single exposure,NA,NA,In vitro
+PMC3318834,Kill rate (complete killing),Exact,4–6,h,Pseudomonas aeruginosa,Clinical isolate,Mutant (ampicillin-resistant),AgNP-AMP,4,µg/mL,4–6,h,Continuous exposure,NA,NA,In vitro
