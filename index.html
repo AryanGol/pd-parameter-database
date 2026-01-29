@@ -5,161 +5,259 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PD Parameter Database</title>
 
-  <!-- DataTables core -->
+  <!-- DataTables core + extensions -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
-  <!-- DataTables extensions -->
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/fixedheader/3.4.0/css/fixedHeader.dataTables.min.css">
 
-  <style>
-    :root { color-scheme: light; }
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      margin: 24px;
-      background: #fff;
-      color: #111;
-    }
-    .wrap { max-width: 1200px; margin: 0 auto; }
-    h1 { font-size: 20px; margin: 0 0 12px; font-weight: 700; }
-    .sub { color: #555; margin: 0 0 18px; font-size: 13px; }
-
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-      padding: 12px;
-      border: 1px solid #e6e6e6;
-      border-radius: 10px;
-      margin-bottom: 14px;
-      background: #fafafa;
-    }
-    @media (min-width: 860px) {
-      .controls { grid-template-columns: 1fr 1fr 1fr; align-items: end; }
-      .controls .wide { grid-column: span 3; }
-    }
-
-    .field label {
-      display: block;
-      font-size: 12px;
-      color: #444;
-      margin-bottom: 6px;
-    }
-    .field input, .field select, .field button {
-      width: 100%;
-      padding: 9px 10px;
-      border: 1px solid #d9d9d9;
-      border-radius: 8px;
-      background: #fff;
-      font-size: 13px;
-      outline: none;
-    }
-    .field button {
-      cursor: pointer;
-      background: #111;
-      color: #fff;
-      border-color: #111;
-      font-weight: 600;
-    }
-    .field button:hover { opacity: 0.92; }
-
-    /* Make footer filters look clean */
-    tfoot th { padding: 8px 10px; }
-    tfoot input, tfoot select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 7px 8px;
-      border-radius: 7px;
-      border: 1px solid #d9d9d9;
-      font-size: 12px;
-    }
-
-    /* DataTables tweaks */
-    table.dataTable thead th { white-space: nowrap; }
-    .dt-buttons .dt-button {
-      border-radius: 8px !important;
-      border: 1px solid #d9d9d9 !important;
-      background: #fff !important;
-      padding: 6px 10px !important;
-      font-size: 12px !important;
-    }
-    .dt-buttons .dt-button:hover { background: #f2f2f2 !important; }
-
-    .hint { font-size: 12px; color: #555; margin-top: 10px; }
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid #e0e0e0;
-      background: #fff;
-      font-size: 12px;
-      color: #333;
-      margin-left: 8px;
-    }
-  </style>
-
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
-
-  <!-- Export dependencies -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
   <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
-
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#0b1220;
+      --card: rgba(255,255,255,0.92);
+      --card2: rgba(255,255,255,0.10);
+      --stroke: rgba(255,255,255,0.20);
+      --text:#0b1220;
+      --muted: rgba(11,18,32,0.65);
+      --shadow: 0 18px 45px rgba(0,0,0,0.25);
+      --r: 18px;
+      --p: #7c3aed; /* purple */
+      --c: #06b6d4; /* cyan */
+      --g: #22c55e; /* green */
+      --o: #f59e0b; /* orange */
+    }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background:
+        radial-gradient(1100px 600px at 10% 10%, rgba(124,58,237,0.35), transparent 55%),
+        radial-gradient(900px 500px at 90% 15%, rgba(6,182,212,0.28), transparent 55%),
+        radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.20), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      color: white;
+    }
+    .wrap{ max-width: 1240px; margin: 0 auto; padding: 26px 16px 46px; }
+
+    .hero{
+      border: 1px solid var(--stroke);
+      border-radius: var(--r);
+      background: linear-gradient(135deg, rgba(255,255,255,0.13), rgba(255,255,255,0.06));
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(10px);
+    }
+    .topline{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .logo{
+      width: 42px; height: 42px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--p), var(--c));
+      box-shadow: 0 10px 28px rgba(124,58,237,0.25);
+    }
+    h1{ margin:0; font-size: 18px; letter-spacing: .2px; }
+    .sub{ margin:6px 0 0; color: rgba(255,255,255,0.78); font-size: 13px; line-height: 1.35; }
+
+    .badge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,0.10);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .dot{
+      width: 8px; height: 8px; border-radius: 999px;
+      background: var(--g);
+      box-shadow: 0 0 0 4px rgba(34,197,94,0.18);
+    }
+
+    /* Controls */
+    .controls{
+      margin-top: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 980px){
+      .controls{ grid-template-columns: 1.2fr 1fr 1fr 1fr; align-items:end; }
+      .controls .wide{ grid-column: span 4; }
+    }
+    label{
+      display:block; font-size: 12px;
+      color: rgba(255,255,255,0.86);
+      margin-bottom: 6px;
+    }
+    .field input, .field select, .field button{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.10);
+      color: white;
+      outline: none;
+      font-size: 13px;
+    }
+    .field input::placeholder{ color: rgba(255,255,255,0.70); }
+    .field button{
+      cursor:pointer;
+      border: none;
+      font-weight: 800;
+      letter-spacing: .2px;
+      background: linear-gradient(135deg, var(--o), var(--p));
+      box-shadow: 0 12px 30px rgba(245,158,11,0.18);
+    }
+    .field button:hover{ filter: brightness(1.05); }
+
+    /* Table card */
+    .card{
+      margin-top: 14px;
+      border-radius: var(--r);
+      background: var(--card);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,0.16);
+      overflow: hidden;
+    }
+    .pad{ padding: 12px 12px 6px; }
+
+    /* DataTables visual tweaks */
+    table.dataTable{ width:100% !important; }
+    table.dataTable thead th{
+      white-space: nowrap;
+      background: linear-gradient(135deg, rgba(124,58,237,0.14), rgba(6,182,212,0.10));
+      border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+      color: #0b1220;
+    }
+
+    /* Top filter row (2nd header row) */
+    #tbl thead tr.filters th{
+      background: rgba(255,255,255,0.95);
+      padding: 8px 10px !important;
+      border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+    }
+    #tbl thead tr.filters input,
+    #tbl thead tr.filters select{
+      width: 100%;
+      box-sizing: border-box;
+      padding: 7px 9px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.14);
+      font-size: 12px;
+      outline: none;
+      background: #fff;
+    }
+
+    /* Buttons + search */
+    .dataTables_wrapper .dataTables_filter input{
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.15);
+      padding: 7px 10px;
+      outline: none;
+    }
+    .dt-buttons .dt-button{
+      border-radius: 999px !important;
+      border: 1px solid rgba(0,0,0,0.12) !important;
+      background: linear-gradient(135deg, rgba(124,58,237,0.10), rgba(6,182,212,0.10)) !important;
+      padding: 7px 12px !important;
+      font-size: 12px !important;
+      color: #0b1220 !important;
+    }
+    .dt-buttons .dt-button:hover{
+      filter: brightness(1.03);
+      background: linear-gradient(135deg, rgba(124,58,237,0.16), rgba(6,182,212,0.14)) !important;
+    }
+
+    /* Links */
+    a{ color: #4f46e5; text-decoration: none; font-weight: 650; }
+    a:hover{ text-decoration: underline; }
+
+    /* Make row hover nicer */
+    table.dataTable tbody tr:hover{
+      background: rgba(6,182,212,0.08) !important;
+    }
+
+    .miniHint{ margin-top: 10px; font-size: 12px; color: var(--muted); }
+  </style>
 </head>
 
 <body>
 <div class="wrap">
-  <h1>Pharmacodynamic Parameter Database <span class="badge" id="rowCount">0 rows</span></h1>
-  <p class="sub">Search and filter by PMCID, parameter, species, value type/unit, strain, and value range. Export filtered results.</p>
 
-  <div class="controls">
-    <div class="field">
-      <label>Parameter_Value range</label>
-      <div style="display:flex; gap:10px;">
-        <input id="minVal" type="number" step="any" placeholder="Min">
-        <input id="maxVal" type="number" step="any" placeholder="Max">
+  <div class="hero">
+    <div class="topline">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>Pharmacodynamic Parameter Database</h1>
+          <div class="sub">Beautiful searchable PD table on GitHub Pages • PMCID links • per-column filters on top • exports</div>
+        </div>
       </div>
+      <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
     </div>
 
-    <div class="field">
-      <label>Quick filter: Target_Species</label>
-      <select id="speciesQuick">
-        <option value="">All species</option>
-      </select>
-    </div>
+    <div class="controls">
+      <div class="field">
+        <label>Parameter_Value range</label>
+        <div style="display:flex; gap:10px;">
+          <input id="minVal" type="number" step="any" placeholder="Min">
+          <input id="maxVal" type="number" step="any" placeholder="Max">
+        </div>
+      </div>
 
-    <div class="field">
-      <label>Quick filter: Parameter_Name</label>
-      <select id="paramQuick">
-        <option value="">All parameters</option>
-      </select>
-    </div>
+      <div class="field">
+        <label>Quick filter: Drug_Name</label>
+        <select id="drugQuick"><option value="">All drugs</option></select>
+      </div>
 
-    <div class="field wide">
-      <button id="clearAll">Clear all filters</button>
-      <div class="hint">Tip: You also have filters under each column header (dropdowns/text) for fine control.</div>
+      <div class="field">
+        <label>Quick filter: Target_Species</label>
+        <select id="speciesQuick"><option value="">All species</option></select>
+      </div>
+
+      <div class="field">
+        <label>Quick filter: Parameter_Name</label>
+        <select id="paramQuick"><option value="">All parameters</option></select>
+      </div>
+
+      <div class="field wide">
+        <button id="clearAll">Clear all filters</button>
+        <div class="miniHint">Tip: Use the small filter boxes directly under the column titles for precise filtering.</div>
+      </div>
     </div>
   </div>
 
-  <table id="tbl" class="display nowrap" style="width:100%">
-    <thead></thead>
-    <tfoot></tfoot>
-    <tbody></tbody>
-  </table>
+  <div class="card">
+    <div class="pad">
+      <table id="tbl" class="display nowrap" style="width:100%">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
 (function () {
-  // Change these if your column names differ in the CSV
+  // Expect/normalize these columns (Drug_Name will be created if missing)
   const COLS = {
     pmcid: "PMCID",
+    drug: "Drug_Name",
     param: "Parameter_Name",
     valueType: "Value_Type",
     value: "Parameter_Value",
@@ -168,10 +266,9 @@
     strain: "Species_Strain"
   };
 
-  // Columns to show dropdown filters for (categorical)
-  const DROPDOWN_FILTER_COLS = new Set([COLS.param, COLS.valueType, COLS.unit, COLS.species, COLS.strain]);
+  // Categorical columns get dropdown filters in the header filter row
+  const DROPDOWN_FILTER_COLS = new Set([COLS.drug, COLS.param, COLS.valueType, COLS.unit, COLS.species, COLS.strain]);
 
-  // Safer parsing for numeric values (handles empty, NA, commas)
   function toNumber(x) {
     if (x === null || x === undefined) return NaN;
     const s = String(x).trim();
@@ -181,11 +278,9 @@
     return Number.isFinite(n) ? n : NaN;
   }
 
-  // Turn PMCID into a clickable link
   function pmcLink(pmcid) {
     const v = String(pmcid || "").trim();
     if (!v) return "";
-    // Expecting something like PMC1057910
     if (/^PMC\d+$/i.test(v)) {
       const id = v.toUpperCase().replace(/^PMC/i, "");
       const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
@@ -194,33 +289,25 @@
     return v;
   }
 
-  // Build unique values dropdown helper
   function uniqueSorted(arr) {
-    return Array.from(new Set(arr.map(x => (x ?? "").toString().trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+    return Array.from(new Set(arr.map(x => (x ?? "").toString().trim()).filter(Boolean)))
+      .sort((a,b)=>a.localeCompare(b));
   }
 
-  // Custom numeric range filter (DataTables global search hook)
-  $.fn.dataTable.ext.search.push(function (settings, data, dataIndex, rowData) {
-    // rowData is available in newer DataTables, but to be safe we use table API later.
-    // We'll compute based on the displayed data array in "data" using the column index.
+  // Numeric range filter
+  $.fn.dataTable.ext.search.push(function (settings, data) {
     const min = toNumber(document.getElementById("minVal").value);
     const max = toNumber(document.getElementById("maxVal").value);
-
     if (!Number.isFinite(min) && !Number.isFinite(max)) return true;
 
-    // Find Parameter_Value column index from header text:
     const headers = settings.aoColumns.map(c => c.sTitle);
     const idx = headers.indexOf(COLS.value);
     if (idx === -1) return true;
 
     const val = toNumber(data[idx]);
-
-    // If val missing and range filtering active, drop it
     if (!Number.isFinite(val)) return false;
-
     if (Number.isFinite(min) && val < min) return false;
     if (Number.isFinite(max) && val > max) return false;
-
     return true;
   });
 
@@ -229,18 +316,13 @@
     header: true,
     skipEmptyLines: true,
     complete: function (results) {
-      // Clean rows (remove totally empty objects)
       const rows = (results.data || []).filter(r =>
         Object.values(r).some(v => (v ?? "").toString().trim() !== "")
       );
 
-      if (!rows.length) {
-        document.querySelector(".sub").textContent = "Could not load data.csv or the file is empty.";
-        return;
-      }
+      if (!rows.length) return;
 
-      // Ensure PMCID is filled down if blank (Excel merged-style behavior)
-      // If a row has empty PMCID, use previous row's PMCID.
+      // Fill-down PMCID like Excel merged cells
       let lastPMCID = "";
       rows.forEach(r => {
         const v = (r[COLS.pmcid] ?? "").toString().trim();
@@ -248,8 +330,19 @@
         else r[COLS.pmcid] = lastPMCID;
       });
 
-      // Build columns from CSV headers
-      const headers = Object.keys(rows[0]);
+      // Ensure Drug_Name column exists (even if missing in CSV)
+      rows.forEach(r => {
+        if (!(COLS.drug in r)) r[COLS.drug] = "";
+      });
+
+      // Choose header order (nice consistent order)
+      const preferredOrder = [
+        COLS.pmcid, COLS.drug, COLS.param, COLS.valueType, COLS.value, COLS.unit, COLS.species, COLS.strain
+      ];
+      const csvHeaders = Object.keys(rows[0]);
+      const headers = preferredOrder.filter(h => csvHeaders.includes(h) || h === COLS.drug)
+        .concat(csvHeaders.filter(h => !preferredOrder.includes(h)));
+
       const columns = headers.map(h => ({
         title: h,
         data: h,
@@ -259,24 +352,22 @@
         }
       }));
 
-      // Build THEAD + TFOOT (filters)
-      const $theadRow = $("<tr/>");
-      const $tfootRow = $("<tr/>");
+      // Build THEAD with 2 rows: titles + filters (TOP only)
+      const $titleRow = $("<tr/>");
+      const $filterRow = $("<tr class='filters'/>");
 
       headers.forEach(h => {
-        $theadRow.append(`<th>${h}</th>`);
+        $titleRow.append(`<th>${h}</th>`);
 
         if (DROPDOWN_FILTER_COLS.has(h)) {
-          $tfootRow.append(`<th><select data-col="${h}"><option value="">All</option></select></th>`);
+          $filterRow.append(`<th><select data-col="${h}"><option value="">All</option></select></th>`);
         } else {
-          $tfootRow.append(`<th><input type="text" placeholder="Search ${h}" data-col="${h}"/></th>`);
+          $filterRow.append(`<th><input type="text" placeholder="Search" data-col="${h}"/></th>`);
         }
       });
 
-      $("#tbl thead").append($theadRow);
-      $("#tbl tfoot").append($tfootRow);
+      $("#tbl thead").append($titleRow).append($filterRow);
 
-      // Init table
       const table = $("#tbl").DataTable({
         data: rows,
         columns: columns,
@@ -291,45 +382,42 @@
           { extend: "excel", title: "pd-parameter-database" },
           { extend: "print", title: "pd-parameter-database" }
         ],
-        order: [[ headers.indexOf(COLS.pmcid) !== -1 ? headers.indexOf(COLS.pmcid) : 0, "asc" ]]
+        orderCellsTop: true,
+        order: [[ Math.max(headers.indexOf(COLS.pmcid), 0), "asc" ]]
       });
 
       // Row count badge
-      function updateCount() {
+      const updateCount = () => {
         const n = table.rows({ filter: "applied" }).count();
         document.getElementById("rowCount").textContent = `${n} rows`;
-      }
+      };
       updateCount();
       table.on("draw", updateCount);
 
-      // Populate dropdown filters in footer
+      // Populate dropdown filters in TOP filter row
       headers.forEach((h, idx) => {
         if (!DROPDOWN_FILTER_COLS.has(h)) return;
         const col = table.column(idx);
         const values = uniqueSorted(col.data().toArray());
-
-        const $select = $(`#tbl tfoot select[data-col="${h}"]`);
+        const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
         values.forEach(v => $select.append(`<option value="${$("<div>").text(v).html()}">${v}</option>`));
       });
 
-      // Footer filter behavior
+      // Per-column filter logic (TOP only)
       table.columns().every(function () {
         const col = this;
         const idx = col.index();
         const h = headers[idx];
 
-        // Dropdown exact match
-        const $select = $(`#tbl tfoot select[data-col="${h}"]`);
+        const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
         if ($select.length) {
           $select.on("change", function () {
             const val = $(this).val();
-            // exact match regex
             col.search(val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "", true, false).draw();
           });
         }
 
-        // Text search
-        const $input = $(`#tbl tfoot input[data-col="${h}"]`);
+        const $input = $(`#tbl thead tr.filters input[data-col="${h}"]`);
         if ($input.length) {
           $input.on("keyup change clear", function () {
             col.search(this.value || "").draw();
@@ -337,7 +425,7 @@
         }
       });
 
-      // Quick filters (top dropdowns)
+      // Quick dropdowns in the big control panel
       function setQuickOptions(selectId, colName) {
         const idx = headers.indexOf(colName);
         if (idx === -1) return;
@@ -350,12 +438,13 @@
           opt.textContent = v;
           el.appendChild(opt);
         });
-
         el.addEventListener("change", () => {
           const val = el.value;
           col.search(val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "", true, false).draw();
         });
       }
+
+      setQuickOptions("drugQuick", COLS.drug);
       setQuickOptions("speciesQuick", COLS.species);
       setQuickOptions("paramQuick", COLS.param);
 
@@ -363,26 +452,24 @@
       document.getElementById("minVal").addEventListener("input", () => table.draw());
       document.getElementById("maxVal").addEventListener("input", () => table.draw());
 
-      // Clear all
+      // Clear all filters (TOP + global + range + quick)
       document.getElementById("clearAll").addEventListener("click", () => {
-        // Clear DataTables searches
         table.search("");
         table.columns().search("");
 
-        // Clear UI elements
-        $("#tbl tfoot input").val("");
-        $("#tbl tfoot select").val("");
+        // Clear header filter row
+        $("#tbl thead tr.filters input").val("");
+        $("#tbl thead tr.filters select").val("");
+
+        // Clear quick + range
         document.getElementById("minVal").value = "";
         document.getElementById("maxVal").value = "";
+        document.getElementById("drugQuick").value = "";
         document.getElementById("speciesQuick").value = "";
         document.getElementById("paramQuick").value = "";
 
         table.draw();
       });
-    },
-    error: function () {
-      document.querySelector(".sub").textContent =
-        "Could not load data.csv. Make sure data.csv is in the same folder as index.html and GitHub Pages is serving that folder.";
     }
   });
 })();
