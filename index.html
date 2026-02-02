@@ -15,9 +15,8 @@
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script><!-- ✅ Column show/hide -->
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script><!-- Column show/hide -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
@@ -121,6 +120,17 @@
     }
     .field button:hover{ filter: brightness(1.05); }
 
+    /* ✅ Fix #1: top quick-filter dropdown readability */
+    .controls .field select{
+      background: rgba(255,255,255,0.92);
+      color: #0b1220;
+      border: 1px solid rgba(255,255,255,0.35);
+    }
+    .controls .field select option{
+      background: #ffffff;
+      color: #0b1220;
+    }
+
     .card{
       margin-top: 14px;
       border-radius: var(--r);
@@ -163,9 +173,7 @@
       font-size: 12px;
       outline: none;
       background: #fff;
-    }
-    .colFilter select{
-      max-width: 100%;
+      color: #0b1220;
     }
 
     /* Buttons + global search */
@@ -359,13 +367,13 @@
       const $titleRow = $("<tr/>");
       const $filterRow = $("<tr class='filters'/>");
 
-      headers.forEach(h => {
+      headers.forEach((h, idx) => {
         $titleRow.append(`<th>${h}</th>`);
         $filterRow.append(`
           <th>
             <div class="colFilter">
-              <input type="text" placeholder="Search…" data-col="${h}">
-              <select data-col="${h}">
+              <input type="text" placeholder="Search…" data-col-idx="${idx}">
+              <select data-col-idx="${idx}">
                 <option value="">All options</option>
               </select>
             </div>
@@ -379,7 +387,6 @@
         data: rows,
         columns: columns,
 
-        // ✅ Show all columns (no responsive hiding) + horizontal scroll
         responsive: false,
         scrollX: true,
         scrollCollapse: true,
@@ -387,9 +394,8 @@
         fixedHeader: true,
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-        dom: "Blfrtip", // ✅ include Length menu (l)
+        dom: "Blfrtip",
 
-        // ✅ Remember hidden columns + filters
         stateSave: true,
 
         buttons: [
@@ -397,8 +403,6 @@
           { extend: "csv",   title: "pd-parameter-database" },
           { extend: "excel", title: "pd-parameter-database" },
           { extend: "print", title: "pd-parameter-database" },
-
-          // ✅ Column hide/show UI
           { extend: "colvis", text: "Columns" },
           { extend: "colvisRestore", text: "Reset columns" }
         ],
@@ -415,44 +419,53 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // Fill dropdown options for EVERY column
+      // ✅ Fill dropdown options for EVERY column (and for FixedHeader clones too)
       headers.forEach((h, idx) => {
         const col = table.column(idx);
-        const values = uniqueSorted(col.data().toArray());
-        const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
-        values.forEach(v => {
-          const safe = $("<div>").text(v).html();
-          $select.append(`<option value="${safe}">${safe}</option>`);
+
+        let values = col.data().toArray();
+        if (h === COLS.pmcid) {
+          values = values.map(v => (v ?? "").toString().trim()); // keep plain
+        }
+        values = uniqueSorted(values);
+
+        const $selects = $(`select[data-col-idx="${idx}"]`);
+        $selects.each(function () {
+          const $sel = $(this);
+          $sel.find("option:not(:first)").remove();
+          values.forEach(v => {
+            const safe = $("<div>").text(v).html();
+            $sel.append(`<option value="${safe}">${safe}</option>`);
+          });
         });
       });
 
-      // Per-column filtering:
-      // - typing in input => partial search (manual)
-      // - selecting dropdown => exact match
-      table.columns().every(function () {
-        const col = this;
-        const idx = col.index();
-        const h = headers[idx];
+      // ✅ Fix #2 + #3: Delegated handlers so filtering works with FixedHeader clones
+      $(document).on("keyup change", 'input[data-col-idx]', function () {
+        const idx = Number(this.getAttribute("data-col-idx"));
+        const col = table.column(idx);
 
-        const $input = $(`#tbl thead tr.filters input[data-col="${h}"]`);
-        const $select = $(`#tbl thead tr.filters select[data-col="${h}"]`);
+        // Clear sibling dropdown
+        const $cell = $(this).closest(".colFilter");
+        $cell.find('select[data-col-idx]').val("");
 
-        $input.on("keyup change clear", function () {
-          // if user types manually, clear dropdown selection
-          $select.val("");
-          col.search(this.value || "", false, true).draw();
-        });
+        col.search(this.value || "", false, true).draw();
+      });
 
-        $select.on("change", function () {
-          const val = $(this).val();
-          // if user selects a value, clear manual input
-          $input.val("");
-          col.search(
-            val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "",
-            true,  // regex
-            false  // smart
-          ).draw();
-        });
+      $(document).on("change", 'select[data-col-idx]', function () {
+        const idx = Number(this.getAttribute("data-col-idx"));
+        const col = table.column(idx);
+        const val = $(this).val();
+
+        // Clear sibling input
+        const $cell = $(this).closest(".colFilter");
+        $cell.find('input[data-col-idx]').val("");
+
+        col.search(
+          val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "",
+          true,
+          false
+        ).draw();
       });
 
       // Quick dropdowns in the control panel
