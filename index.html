@@ -15,7 +15,7 @@
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script><!-- Column show/hide -->
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -44,8 +44,12 @@
         radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.20), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
       color: white;
+      /* optional: allow page-level horizontal scroll when needed */
+      overflow-x: auto;
     }
-    .wrap{ max-width: 1240px; margin: 0 auto; padding: 26px 16px 46px; }
+
+    /* Make layout use the full viewport width (no artificial max-width) */
+    .wrap{ width: 100%; max-width: none; margin: 0; padding: 26px 16px 46px; box-sizing: border-box; }
 
     .hero{
       border: 1px solid var(--stroke);
@@ -108,6 +112,7 @@
       color: white;
       outline: none;
       font-size: 13px;
+      box-sizing: border-box;
     }
     .field input::placeholder{ color: rgba(255,255,255,0.70); }
     .field button{
@@ -212,6 +217,10 @@
       font-weight: 800;
       margin-right: 6px;
     }
+
+    /* ✅ Full-width behavior: remove DataTables' internal horizontal scroller if it appears */
+    .dataTables_scrollBody { overflow-x: visible !important; }
+    .dataTables_wrapper { width: 100%; }
   </style>
 </head>
 
@@ -224,7 +233,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Search quickly at the top; expand a row to view Title + Citation + Evidence + Drug concentration/time.</div>
+          <div class="sub">Full-width table. Expand a row to view Title + Citation + Evidence + Drug concentration/time.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -260,7 +269,7 @@
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
           Per-column filters are in the header row. For selected columns you also get a dropdown of unique values.
-          Click “+” at the start of a row to view Title + Citation.
+          Click “+” at the start of a row to view the hidden fields.
         </div>
       </div>
     </div>
@@ -302,9 +311,6 @@
     H.pmc, H.parameter, H.value, H.unit, H.species, H.strain,
     H.source, H.status, H.mode, H.drug
   ];
-
-  // Hidden columns (only shown in row details)
-  const HIDDEN_HEADERS = [H.drugDose, H.evidence, H.title, H.citation];
 
   // Columns that should ALSO show dropdown options (besides text search)
   const DROPDOWN_COLS = new Set([
@@ -427,9 +433,7 @@
       $filterRow.append(`<th></th>`);
 
       VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
-        // because we have a leading control column in DataTables, actual DT index is +1
-        const dtIdx = idxZeroBased + 1;
-
+        const dtIdx = idxZeroBased + 1; // +1 because of control column
         $titleRow.append(`<th>${h}</th>`);
 
         const hasDropdown = DROPDOWN_COLS.has(h);
@@ -452,9 +456,12 @@
       const table = $("#tbl").DataTable({
         data: rows,
         columns: columns,
+
         responsive: false,
-        scrollX: true,
-        scrollCollapse: true,
+        /* ✅ IMPORTANT: remove DataTables internal horizontal scroller */
+        /* scrollX: true, */
+        /* scrollCollapse: true, */
+
         fixedHeader: true,
 
         pageLength: 25,
@@ -531,21 +538,7 @@
         ).draw();
       });
 
-      // Global search helpers:
-      // Top controls should search the underlying dataset, including hidden fields.
-      // We implement this by using table.search() with regex that targets the column value via DataTables column search.
-      //
-      // For visible columns we can directly use column().search().
-      // For hidden columns (Title) we can still column-search by data key because the row object contains it.
-      // But DataTables column search only applies to columns defined in the table.
-      // So: Title search will use global search on the whole row text via table.search().
-      //
-      // Pragmatic approach:
-      // - PMC/Parameter/Drug/Species -> column search (visible)
-      // - Title -> global search (matches hidden Title text because it exists in row data stringification by DataTables)
-      //
-      // If your DataTables build ever stops matching hidden keys in global search, tell me and I'll swap to a custom filter.
-
+      // Global search helpers
       const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
       const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
       const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
@@ -564,12 +557,12 @@
         table.column(idxSpecies).search(e.target.value || "", false, true).draw();
       });
 
-      // Title search (hidden column) -> global search across all row text
+      // Title search (hidden field) -> global search across row text
       document.getElementById("titleGlobal").addEventListener("input", (e) => {
         table.search(e.target.value || "", false, true).draw();
       });
 
-      // Row details: click "+" cell to toggle details panel (contains the 4 hidden fields)
+      // Row details: click "+" cell to toggle details panel
       $("#tbl tbody").on("click", "td.details-control", function () {
         const tr = $(this).closest("tr");
         const row = table.row(tr);
