@@ -91,8 +91,8 @@
       gap: 12px;
     }
     @media (min-width: 980px){
-      .controls{ grid-template-columns: 1fr 1fr 1fr 1fr; align-items:end; }
-      .controls .wide{ grid-column: span 4; }
+      .controls{ grid-template-columns: 1fr 1fr 1fr 1fr 1fr; align-items:end; }
+      .controls .wide{ grid-column: span 5; }
     }
     label{
       display:block; font-size: 12px;
@@ -224,7 +224,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Search by Title, filter per column, and click a row to view the full reference (Citation).</div>
+          <div class="sub">Search quickly at the top; expand a row to view Title + Citation + Evidence + Drug concentration/time.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -251,11 +251,16 @@
         <input id="drugGlobal" type="text" placeholder="Zinc Oxide...">
       </div>
 
+      <div class="field">
+        <label>Search by Species (global)</label>
+        <input id="speciesGlobal" type="text" placeholder="Pseudomonas aeruginosa...">
+      </div>
+
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
           Per-column filters are in the header row. For selected columns you also get a dropdown of unique values.
-          Click “+” at the start of a row to view the Citation/reference.
+          Click “+” at the start of a row to view Title + Citation.
         </div>
       </div>
     </div>
@@ -292,6 +297,15 @@
     citation: "Citation"
   };
 
+  // Visible table columns: keep first 10 CSV columns, hide the last 4
+  const VISIBLE_HEADERS = [
+    H.pmc, H.parameter, H.value, H.unit, H.species, H.strain,
+    H.source, H.status, H.mode, H.drug
+  ];
+
+  // Hidden columns (only shown in row details)
+  const HIDDEN_HEADERS = [H.drugDose, H.evidence, H.title, H.citation];
+
   // Columns that should ALSO show dropdown options (besides text search)
   const DROPDOWN_COLS = new Set([
     H.parameter,
@@ -308,7 +322,6 @@
   function pmcLink(pmcid) {
     const v = String(pmcid || "").trim();
     if (!v) return "";
-    // Accept "PMC10060419" or "10060419"
     const m = v.match(/^PMC?(\d+)$/i);
     if (m) {
       const id = m[1];
@@ -318,18 +331,11 @@
     return v;
   }
 
-  function titleLink(title, pmcid) {
-    const t = String(title || "").trim();
-    if (!t) return "";
+  function pmcUrlFromId(pmcid) {
     const v = String(pmcid || "").trim();
     const m = v.match(/^PMC?(\d+)$/i);
-    if (m) {
-      const id = m[1];
-      const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
-      const safe = $("<div>").text(t).html();
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${safe}</a>`;
-    }
-    return $("<div>").text(t).html();
+    if (!m) return "";
+    return `https://pmc.ncbi.nlm.nih.gov/articles/PMC${m[1]}/`;
   }
 
   function uniqueSorted(arr) {
@@ -342,14 +348,23 @@
     const citation = (row[H.citation] ?? "").toString().trim();
     const evidence = (row[H.evidence] ?? "").toString().trim();
     const drugDose = (row[H.drugDose] ?? "").toString().trim();
+    const title = (row[H.title] ?? "").toString().trim();
+
+    const url = pmcUrlFromId(row[H.pmc]);
 
     const safeCitation = $("<div>").text(citation || "—").html();
     const safeEvidence = $("<div>").text(evidence || "—").html();
     const safeDrugDose = $("<div>").text(drugDose || "—").html();
+    const safeTitle = $("<div>").text(title || "—").html();
+
+    const titleHtml = url && title
+      ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
+      : safeTitle;
 
     return `
       <div class="detailsBox">
-        <div><span class="k">Citation:</span> ${safeCitation}</div>
+        <div><span class="k">Title:</span> ${titleHtml}</div>
+        <div style="margin-top:8px;"><span class="k">Citation:</span> ${safeCitation}</div>
         <div style="margin-top:8px;"><span class="k">Evidence (first sentence):</span> ${safeEvidence}</div>
         <div style="margin-top:8px;"><span class="k">Drug amount / concentration (time):</span> ${safeDrugDose}</div>
       </div>
@@ -382,9 +397,7 @@
 
       // DataTables columns:
       // 1 extra control column for expanding row details (NOT a CSV column)
-      // then the 14 CSV columns in order.
-      const headers = allHeaders.slice(); // 14 columns
-
+      // then ONLY the visible columns
       const columns = [
         {
           title: "", data: null,
@@ -395,12 +408,11 @@
           defaultContent: "+",
           render: () => "+"
         },
-        ...headers.map(h => ({
+        ...VISIBLE_HEADERS.map(h => ({
           title: h,
           data: h,
           render: function (data, type, row) {
             if (h === H.pmc) return pmcLink(data);
-            if (h === H.title) return titleLink(data, row[H.pmc]);
             return (data ?? "").toString();
           }
         }))
@@ -414,7 +426,7 @@
       $titleRow.append(`<th></th>`);
       $filterRow.append(`<th></th>`);
 
-      headers.forEach((h, idxZeroBased) => {
+      VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
         // because we have a leading control column in DataTables, actual DT index is +1
         const dtIdx = idxZeroBased + 1;
 
@@ -471,15 +483,13 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // Populate dropdown options ONLY for selected columns
-      headers.forEach((h, idxZeroBased) => {
+      // Populate dropdown options ONLY for selected visible columns
+      VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
         const dtIdx = idxZeroBased + 1;
         if (!DROPDOWN_COLS.has(h)) return;
 
         const col = table.column(dtIdx);
         let values = col.data().toArray();
-
-        // If PMC column ever becomes dropdown (it won't here), we'd want plain values.
         values = uniqueSorted(values);
 
         const $selects = $(`select[data-col-idx="${dtIdx}"]`);
@@ -521,15 +531,26 @@
         ).draw();
       });
 
-      // Global search helpers (focus on requested behaviors)
-      const idxTitle = headers.indexOf(H.title) + 1;
-      const idxPMC   = headers.indexOf(H.pmc) + 1;
-      const idxParam = headers.indexOf(H.parameter) + 1;
-      const idxDrug  = headers.indexOf(H.drug) + 1;
+      // Global search helpers:
+      // Top controls should search the underlying dataset, including hidden fields.
+      // We implement this by using table.search() with regex that targets the column value via DataTables column search.
+      //
+      // For visible columns we can directly use column().search().
+      // For hidden columns (Title) we can still column-search by data key because the row object contains it.
+      // But DataTables column search only applies to columns defined in the table.
+      // So: Title search will use global search on the whole row text via table.search().
+      //
+      // Pragmatic approach:
+      // - PMC/Parameter/Drug/Species -> column search (visible)
+      // - Title -> global search (matches hidden Title text because it exists in row data stringification by DataTables)
+      //
+      // If your DataTables build ever stops matching hidden keys in global search, tell me and I'll swap to a custom filter.
 
-      document.getElementById("titleGlobal").addEventListener("input", (e) => {
-        table.column(idxTitle).search(e.target.value || "", false, true).draw();
-      });
+      const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
+      const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
+      const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
+      const idxSpecies = VISIBLE_HEADERS.indexOf(H.species) + 1;
+
       document.getElementById("pmcGlobal").addEventListener("input", (e) => {
         table.column(idxPMC).search(e.target.value || "", false, true).draw();
       });
@@ -539,8 +560,16 @@
       document.getElementById("drugGlobal").addEventListener("input", (e) => {
         table.column(idxDrug).search(e.target.value || "", false, true).draw();
       });
+      document.getElementById("speciesGlobal").addEventListener("input", (e) => {
+        table.column(idxSpecies).search(e.target.value || "", false, true).draw();
+      });
 
-      // Row details: click "+" cell to toggle Citation display
+      // Title search (hidden column) -> global search across all row text
+      document.getElementById("titleGlobal").addEventListener("input", (e) => {
+        table.search(e.target.value || "", false, true).draw();
+      });
+
+      // Row details: click "+" cell to toggle details panel (contains the 4 hidden fields)
       $("#tbl tbody").on("click", "td.details-control", function () {
         const tr = $(this).closest("tr");
         const row = table.row(tr);
@@ -568,6 +597,7 @@
         document.getElementById("pmcGlobal").value = "";
         document.getElementById("paramGlobal").value = "";
         document.getElementById("drugGlobal").value = "";
+        document.getElementById("speciesGlobal").value = "";
 
         // Close any open row details
         table.rows().every(function () {
