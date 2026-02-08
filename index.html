@@ -91,7 +91,7 @@
       gap: 12px;
     }
     @media (min-width: 980px){
-      .controls{ grid-template-columns: 1.2fr 1fr 1fr 1fr; align-items:end; }
+      .controls{ grid-template-columns: 1fr 1fr 1fr 1fr; align-items:end; }
       .controls .wide{ grid-column: span 4; }
     }
     label{
@@ -99,7 +99,7 @@
       color: rgba(255,255,255,0.86);
       margin-bottom: 6px;
     }
-    .field input, .field select, .field button{
+    .field input, .field button{
       width: 100%;
       padding: 10px 12px;
       border-radius: 12px;
@@ -117,18 +117,6 @@
       letter-spacing: .2px;
       background: linear-gradient(135deg, var(--o), var(--p));
       box-shadow: 0 12px 30px rgba(245,158,11,0.18);
-    }
-    .field button:hover{ filter: brightness(1.05); }
-
-    /* ✅ Fix #1: top quick-filter dropdown readability */
-    .controls .field select{
-      background: rgba(255,255,255,0.92);
-      color: #0b1220;
-      border: 1px solid rgba(255,255,255,0.35);
-    }
-    .controls .field select option{
-      background: #ffffff;
-      color: #0b1220;
     }
 
     .card{
@@ -191,10 +179,6 @@
       font-size: 12px !important;
       color: #0b1220 !important;
     }
-    .dt-buttons .dt-button:hover{
-      filter: brightness(1.03);
-      background: linear-gradient(135deg, rgba(124,58,237,0.16), rgba(6,182,212,0.14)) !important;
-    }
 
     a{ color: #4f46e5; text-decoration: none; font-weight: 650; }
     a:hover{ text-decoration: underline; }
@@ -203,7 +187,31 @@
       background: rgba(6,182,212,0.08) !important;
     }
 
-    .miniHint{ margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .miniHint{ margin-top: 10px; font-size: 12px; color: rgba(11,18,32,0.65); }
+
+    /* Row details */
+    td.details-control{
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 900;
+      color: #4f46e5;
+    }
+    tr.shown td.details-control{
+      color: #0ea5e9;
+    }
+    .detailsBox{
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(79,70,229,0.06);
+      border: 1px solid rgba(0,0,0,0.08);
+      line-height: 1.4;
+      font-size: 13px;
+      color: #0b1220;
+    }
+    .detailsBox .k{
+      font-weight: 800;
+      margin-right: 6px;
+    }
   </style>
 </head>
 
@@ -216,7 +224,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Each row denotes a distinct experimental condition from a study that resulted in the reported parameter</div>
+          <div class="sub">Search by Title, filter per column, and click a row to view the full reference (Citation).</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -224,33 +232,30 @@
 
     <div class="controls">
       <div class="field">
-        <label>Parameter_Value range</label>
-        <div style="display:flex; gap:10px;">
-          <input id="minVal" type="number" step="any" placeholder="Min">
-          <input id="maxVal" type="number" step="any" placeholder="Max">
-        </div>
+        <label>Search article by Title (global)</label>
+        <input id="titleGlobal" type="text" placeholder="Type part of the title…">
       </div>
 
       <div class="field">
-        <label>Quick filter: Drug_Name</label>
-        <select id="drugQuick"><option value="">All drugs</option></select>
+        <label>Search by PMC ID (global)</label>
+        <input id="pmcGlobal" type="text" placeholder="PMC10060419">
       </div>
 
       <div class="field">
-        <label>Quick filter: Target_Species</label>
-        <select id="speciesQuick"><option value="">All species</option></select>
+        <label>Search by Parameter (global)</label>
+        <input id="paramGlobal" type="text" placeholder="MIC, EC50, ...">
       </div>
 
       <div class="field">
-        <label>Quick filter: Parameter_Name</label>
-        <select id="paramQuick"><option value="">All parameters</option></select>
+        <label>Search by Drug/compound (global)</label>
+        <input id="drugGlobal" type="text" placeholder="Zinc Oxide...">
       </div>
 
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-          Tip: Each column has (1) a manual search box and (2) an “All options” dropdown listing all unique values.
-          Use <b>Columns</b> to hide/show columns.
+          Per-column filters are in the header row. For selected columns you also get a dropdown of unique values.
+          Click “+” at the start of a row to view the Citation/reference.
         </div>
       </div>
     </div>
@@ -269,113 +274,162 @@
 
 <script>
 (function () {
-  const COLS = {
-    pmcid: "PMCID",
-    drug: "Drug_Name",
-    param: "Parameter_Name",
-    valueType: "Value_Type",
-    value: "Parameter_Value",
-    unit: "Parameter_Unit",
-    species: "Target_Species",
-    strain: "Species_Strain"
+  // CSV headers (must match exactly)
+  const H = {
+    pmc: "PMC ID",
+    parameter: "Parameter",
+    value: "Reported numerical value",
+    unit: "Unit",
+    species: "Bacterial species name",
+    strain: "Bacterial strain(s)",
+    source: "Source of isolates",
+    status: "Wild-type or mutant status",
+    mode: "Biofilm / planktonic / mixed",
+    drug: "Drug or chemical compound name(s)",
+    drugDose: "Drug amount/concentration with unit and time",
+    evidence: "Evidence - First Sentence of paragraph with numerical data",
+    title: "Title",
+    citation: "Citation"
   };
 
-  function toNumber(x) {
-    if (x === null || x === undefined) return NaN;
-    const s = String(x).trim();
-    if (!s || s.toLowerCase() === "na") return NaN;
-    const normalized = s.replace(/,/g, "");
-    const n = Number(normalized);
-    return Number.isFinite(n) ? n : NaN;
-  }
+  // Columns that should ALSO show dropdown options (besides text search)
+  const DROPDOWN_COLS = new Set([
+    H.parameter,
+    H.value,
+    H.unit,
+    H.species,
+    H.strain,
+    H.source,
+    H.status,
+    H.mode,
+    H.drug
+  ]);
 
   function pmcLink(pmcid) {
     const v = String(pmcid || "").trim();
     if (!v) return "";
-    if (/^PMC\d+$/i.test(v)) {
-      const id = v.toUpperCase().replace(/^PMC/i, "");
+    // Accept "PMC10060419" or "10060419"
+    const m = v.match(/^PMC?(\d+)$/i);
+    if (m) {
+      const id = m[1];
       const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${v}</a>`;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">PMC${id}</a>`;
     }
     return v;
+  }
+
+  function titleLink(title, pmcid) {
+    const t = String(title || "").trim();
+    if (!t) return "";
+    const v = String(pmcid || "").trim();
+    const m = v.match(/^PMC?(\d+)$/i);
+    if (m) {
+      const id = m[1];
+      const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
+      const safe = $("<div>").text(t).html();
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${safe}</a>`;
+    }
+    return $("<div>").text(t).html();
   }
 
   function uniqueSorted(arr) {
     return Array.from(
       new Set(arr.map(x => (x ?? "").toString().trim()).filter(Boolean))
-    ).sort((a,b)=>a.localeCompare(b));
+    ).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
-  // Numeric range filter (Parameter_Value)
-  $.fn.dataTable.ext.search.push(function (settings, data) {
-    const min = toNumber(document.getElementById("minVal").value);
-    const max = toNumber(document.getElementById("maxVal").value);
-    if (!Number.isFinite(min) && !Number.isFinite(max)) return true;
+  function detailsHtml(row) {
+    const citation = (row[H.citation] ?? "").toString().trim();
+    const evidence = (row[H.evidence] ?? "").toString().trim();
+    const drugDose = (row[H.drugDose] ?? "").toString().trim();
 
-    const headers = settings.aoColumns.map(c => c.sTitle);
-    const idx = headers.indexOf(COLS.value);
-    if (idx === -1) return true;
+    const safeCitation = $("<div>").text(citation || "—").html();
+    const safeEvidence = $("<div>").text(evidence || "—").html();
+    const safeDrugDose = $("<div>").text(drugDose || "—").html();
 
-    const val = toNumber(data[idx]);
-    if (!Number.isFinite(val)) return false;
-    if (Number.isFinite(min) && val < min) return false;
-    if (Number.isFinite(max) && val > max) return false;
-    return true;
-  });
+    return `
+      <div class="detailsBox">
+        <div><span class="k">Citation:</span> ${safeCitation}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence (first sentence):</span> ${safeEvidence}</div>
+        <div style="margin-top:8px;"><span class="k">Drug amount / concentration (time):</span> ${safeDrugDose}</div>
+      </div>
+    `;
+  }
 
   Papa.parse("data.csv", {
     download: true,
     header: true,
     skipEmptyLines: true,
     complete: function (results) {
-      const rows = (results.data || []).filter(r =>
+      let rows = (results.data || []).filter(r =>
         Object.values(r).some(v => (v ?? "").toString().trim() !== "")
       );
       if (!rows.length) return;
 
-      // Fill-down PMCID
-      let lastPMCID = "";
+      // Fill-down PMC ID if blank
+      let lastPMC = "";
       rows.forEach(r => {
-        const v = (r[COLS.pmcid] ?? "").toString().trim();
-        if (v) lastPMCID = v;
-        else r[COLS.pmcid] = lastPMCID;
+        const v = (r[H.pmc] ?? "").toString().trim();
+        if (v) lastPMC = v;
+        else r[H.pmc] = lastPMC;
       });
 
-      // Ensure Drug_Name exists
+      // Ensure all expected headers exist on each row (avoid undefined)
+      const allHeaders = Object.values(H);
       rows.forEach(r => {
-        if (!(COLS.drug in r)) r[COLS.drug] = "";
+        allHeaders.forEach(h => { if (!(h in r)) r[h] = ""; });
       });
 
-      // Prefer consistent order, then include all remaining columns from CSV
-      const preferredOrder = [
-        COLS.pmcid, COLS.drug, COLS.param, COLS.valueType, COLS.value, COLS.unit, COLS.species, COLS.strain
+      // DataTables columns:
+      // 1 extra control column for expanding row details (NOT a CSV column)
+      // then the 14 CSV columns in order.
+      const headers = allHeaders.slice(); // 14 columns
+
+      const columns = [
+        {
+          title: "", data: null,
+          className: "details-control",
+          orderable: false,
+          searchable: false,
+          width: "24px",
+          defaultContent: "+",
+          render: () => "+"
+        },
+        ...headers.map(h => ({
+          title: h,
+          data: h,
+          render: function (data, type, row) {
+            if (h === H.pmc) return pmcLink(data);
+            if (h === H.title) return titleLink(data, row[H.pmc]);
+            return (data ?? "").toString();
+          }
+        }))
       ];
-      const csvHeaders = Object.keys(rows[0]);
-      const headers = preferredOrder.filter(h => csvHeaders.includes(h) || h === COLS.drug)
-        .concat(csvHeaders.filter(h => !preferredOrder.includes(h)));
 
-      const columns = headers.map(h => ({
-        title: h,
-        data: h,
-        render: function (data, type, row) {
-          if (h === COLS.pmcid) return pmcLink(data);
-          return (data ?? "").toString();
-        }
-      }));
-
-      // Build THEAD: titles + filters (input + dropdown for EVERY column)
+      // Build THEAD: titles + filters
       const $titleRow = $("<tr/>");
       const $filterRow = $("<tr class='filters'/>");
 
-      headers.forEach((h, idx) => {
+      // Control column header + empty filter cell
+      $titleRow.append(`<th></th>`);
+      $filterRow.append(`<th></th>`);
+
+      headers.forEach((h, idxZeroBased) => {
+        // because we have a leading control column in DataTables, actual DT index is +1
+        const dtIdx = idxZeroBased + 1;
+
         $titleRow.append(`<th>${h}</th>`);
+
+        const hasDropdown = DROPDOWN_COLS.has(h);
         $filterRow.append(`
           <th>
             <div class="colFilter">
-              <input type="text" placeholder="Search…" data-col-idx="${idx}">
-              <select data-col-idx="${idx}">
-                <option value="">All options</option>
-              </select>
+              <input type="text" placeholder="Search…" data-col-idx="${dtIdx}">
+              ${hasDropdown ? `
+                <select data-col-idx="${dtIdx}">
+                  <option value="">All options</option>
+                </select>
+              ` : ``}
             </div>
           </th>
         `);
@@ -386,16 +440,14 @@
       const table = $("#tbl").DataTable({
         data: rows,
         columns: columns,
-
         responsive: false,
         scrollX: true,
         scrollCollapse: true,
-
         fixedHeader: true,
+
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         dom: "Blfrtip",
-
         stateSave: true,
 
         buttons: [
@@ -408,7 +460,7 @@
         ],
 
         orderCellsTop: true,
-        order: [[ Math.max(headers.indexOf(COLS.pmcid), 0), "asc" ]]
+        order: [[ 1, "asc" ]] // sort by "PMC ID" (DT index 1)
       });
 
       // Row count badge
@@ -419,17 +471,18 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // ✅ Fill dropdown options for EVERY column (and for FixedHeader clones too)
-      headers.forEach((h, idx) => {
-        const col = table.column(idx);
+      // Populate dropdown options ONLY for selected columns
+      headers.forEach((h, idxZeroBased) => {
+        const dtIdx = idxZeroBased + 1;
+        if (!DROPDOWN_COLS.has(h)) return;
 
+        const col = table.column(dtIdx);
         let values = col.data().toArray();
-        if (h === COLS.pmcid) {
-          values = values.map(v => (v ?? "").toString().trim()); // keep plain
-        }
+
+        // If PMC column ever becomes dropdown (it won't here), we'd want plain values.
         values = uniqueSorted(values);
 
-        const $selects = $(`select[data-col-idx="${idx}"]`);
+        const $selects = $(`select[data-col-idx="${dtIdx}"]`);
         $selects.each(function () {
           const $sel = $(this);
           $sel.find("option:not(:first)").remove();
@@ -440,12 +493,12 @@
         });
       });
 
-      // ✅ Fix #2 + #3: Delegated handlers so filtering works with FixedHeader clones
+      // Delegated handlers so FixedHeader clones also work
       $(document).on("keyup change", 'input[data-col-idx]', function () {
         const idx = Number(this.getAttribute("data-col-idx"));
         const col = table.column(idx);
 
-        // Clear sibling dropdown
+        // Clear sibling dropdown (if present)
         const $cell = $(this).closest(".colFilter");
         $cell.find('select[data-col-idx]').val("");
 
@@ -468,34 +521,40 @@
         ).draw();
       });
 
-      // Quick dropdowns in the control panel
-      function setQuickOptions(selectId, colName) {
-        const idx = headers.indexOf(colName);
-        if (idx === -1) return;
-        const col = table.column(idx);
-        const values = uniqueSorted(col.data().toArray());
-        const el = document.getElementById(selectId);
+      // Global search helpers (focus on requested behaviors)
+      const idxTitle = headers.indexOf(H.title) + 1;
+      const idxPMC   = headers.indexOf(H.pmc) + 1;
+      const idxParam = headers.indexOf(H.parameter) + 1;
+      const idxDrug  = headers.indexOf(H.drug) + 1;
 
-        values.forEach(v => {
-          const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v;
-          el.appendChild(opt);
-        });
+      document.getElementById("titleGlobal").addEventListener("input", (e) => {
+        table.column(idxTitle).search(e.target.value || "", false, true).draw();
+      });
+      document.getElementById("pmcGlobal").addEventListener("input", (e) => {
+        table.column(idxPMC).search(e.target.value || "", false, true).draw();
+      });
+      document.getElementById("paramGlobal").addEventListener("input", (e) => {
+        table.column(idxParam).search(e.target.value || "", false, true).draw();
+      });
+      document.getElementById("drugGlobal").addEventListener("input", (e) => {
+        table.column(idxDrug).search(e.target.value || "", false, true).draw();
+      });
 
-        el.addEventListener("change", () => {
-          const val = el.value;
-          col.search(val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "", true, false).draw();
-        });
-      }
+      // Row details: click "+" cell to toggle Citation display
+      $("#tbl tbody").on("click", "td.details-control", function () {
+        const tr = $(this).closest("tr");
+        const row = table.row(tr);
 
-      setQuickOptions("drugQuick", COLS.drug);
-      setQuickOptions("speciesQuick", COLS.species);
-      setQuickOptions("paramQuick", COLS.param);
-
-      // Numeric range inputs
-      document.getElementById("minVal").addEventListener("input", () => table.draw());
-      document.getElementById("maxVal").addEventListener("input", () => table.draw());
+        if (row.child.isShown()) {
+          row.child.hide();
+          tr.removeClass("shown");
+          $(this).text("+");
+        } else {
+          row.child(detailsHtml(row.data())).show();
+          tr.addClass("shown");
+          $(this).text("–");
+        }
+      });
 
       // Clear all filters
       document.getElementById("clearAll").addEventListener("click", () => {
@@ -505,11 +564,17 @@
         $("#tbl thead tr.filters input").val("");
         $("#tbl thead tr.filters select").val("");
 
-        document.getElementById("minVal").value = "";
-        document.getElementById("maxVal").value = "";
-        document.getElementById("drugQuick").value = "";
-        document.getElementById("speciesQuick").value = "";
-        document.getElementById("paramQuick").value = "";
+        document.getElementById("titleGlobal").value = "";
+        document.getElementById("pmcGlobal").value = "";
+        document.getElementById("paramGlobal").value = "";
+        document.getElementById("drugGlobal").value = "";
+
+        // Close any open row details
+        table.rows().every(function () {
+          if (this.child.isShown()) this.child.hide();
+        });
+        $("#tbl tbody tr").removeClass("shown");
+        $("#tbl tbody td.details-control").text("+");
 
         table.draw();
       });
