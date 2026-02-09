@@ -44,8 +44,7 @@
         radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.20), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
       color: white;
-      /* optional: allow page-level horizontal scroll when needed */
-      overflow-x: auto;
+      overflow-x: auto; /* allow page-level horizontal scroll if needed */
     }
 
     /* Make layout use the full viewport width (no artificial max-width) */
@@ -218,8 +217,19 @@
       margin-right: 6px;
     }
 
-    /* ✅ Full-width behavior: remove DataTables' internal horizontal scroller if it appears */
-    .dataTables_scrollBody { overflow-x: visible !important; }
+    /* ✅ Horizontal scrollbar wrapper */
+    .tableWrap{
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ✅ Ensure DataTables scroll area keeps horizontal scroll */
+    .dataTables_scrollBody{
+      overflow-x: auto !important;
+    }
+
     .dataTables_wrapper { width: 100%; }
   </style>
 </head>
@@ -268,7 +278,6 @@
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-        
           Click “+” at the start of a row to view the hidden fields.
         </div>
       </div>
@@ -277,10 +286,13 @@
 
   <div class="card">
     <div class="pad">
-      <table id="tbl" class="display nowrap" style="width:100%">
-        <thead></thead>
-        <tbody></tbody>
-      </table>
+      <!-- ✅ Scroll container so you can slide left/right -->
+      <div class="tableWrap">
+        <table id="tbl" class="display nowrap" style="width:100%">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -458,9 +470,10 @@
         columns: columns,
 
         responsive: false,
-        /* ✅ IMPORTANT: remove DataTables internal horizontal scroller */
-        /* scrollX: true, */
-        /* scrollCollapse: true, */
+
+        /* ✅ ENABLE horizontal scrollbar */
+        scrollX: true,
+        scrollCollapse: true,
 
         fixedHeader: true,
 
@@ -608,4 +621,3 @@
 
 </body>
 </html>
-
