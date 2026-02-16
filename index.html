@@ -19,7 +19,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
 
-  <!-- ✅ SheetJS for reading XLSX (preserves hyperlinks) -->
+  <!-- SheetJS for reading XLSX (keeps hyperlinks) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
@@ -190,8 +190,6 @@
       cursor: pointer;
     }
 
-    .miniHint{ margin-top: 10px; font-size: 12px; color: rgba(11,18,32,0.65); }
-
     td.details-control{
       cursor: pointer;
       white-space: nowrap;
@@ -237,7 +235,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Loads XLSX (data-16Feb.xlsx). Evidence hyperlinks from Excel become clickable.</div>
+          <div class="sub">Loads XLSX (data-16Feb.xlsx). Title/Citation are filled-down per PMCID.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -271,8 +269,8 @@
 
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
-        <div class="miniHint">
-          Tip: Evidence hyperlinks come from Excel cell hyperlinks (not CSV). Embedded URLs still work too.
+        <div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.75)">
+          Tip: Evidence links come from Excel hyperlinks (cell metadata). Use a local server (python -m http.server) if opening locally.
         </div>
       </div>
     </div>
@@ -293,10 +291,9 @@
 
 <script>
 (function () {
-  // ✅ XLSX filename
   const XLSX_FILE = "data-16Feb.xlsx";
 
-  // === Column headers (MUST match your sheet header row exactly) ===
+  // Canonical field labels (what our code uses internally)
   const H = {
     pmc: "PMCID",
     parameter: "Parameter",
@@ -326,12 +323,23 @@
   ]);
 
   function cleanVal(x){
-    const v = (x ?? "").toString().trim();
+    const v = (x ?? "").toString().replace(/\u00A0/g, " ").trim(); // handle NBSP too
     if (!v) return "";
     if (/^(nan|null|none)$/i.test(v)) return "";
     return v;
   }
   function escapeHtml(s){ return $("<div>").text(s ?? "").html(); }
+  function sanitizeHttpUrl(u){
+    u = cleanVal(u);
+    if (!/^https?:\/\/\S+/i.test(u)) return "";
+    return u;
+  }
+  function renderLink(url, label){
+    const href = sanitizeHttpUrl(url);
+    if (!href) return escapeHtml(label ?? "");
+    const safeLabel = escapeHtml((label ?? href).toString());
+    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+  }
 
   function pmcUrlFromId(pmcid) {
     const v = cleanVal(pmcid);
@@ -356,23 +364,32 @@
       .sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
-  function sanitizeHttpUrl(u){
-    u = cleanVal(u);
-    if (!/^https?:\/\/\S+/i.test(u)) return "";
-    return u;
+  // Map sheet headers -> canonical keys (supports your "Parameter/Variable name" etc.)
+  function canonicalHeader(h){
+    const s = cleanVal(h).toLowerCase();
+
+    if (/^(pmcid|pmc\s*id)$/i.test(s)) return H.pmc;
+    if (/^parameter\b/.test(s)) return H.parameter; // "Parameter" or "Parameter/Variable name"
+    if (/reported\s+numerical\s+value/.test(s) || /^reported\s*value$/.test(s) || /^value$/.test(s)) return H.value;
+    if (/^unit$/.test(s)) return H.unit;
+
+    if (/^evidence$/.test(s)) return H.evidence;
+    if (/^tested\s*isolate$/.test(s)) return H.testedIsolate;
+
+    if (/^bacterial\s+species/.test(s)) return H.species;
+    if (/^bacterial\s+strain/.test(s)) return H.strain;
+    if (/^source\s+of\s+biological/.test(s) || /^source\s+of\s+isolates/.test(s)) return H.source;
+    if (/wild-?type|mutant|genotype/.test(s)) return H.status;
+    if (/biofilm|planktonic|mixed/.test(s)) return H.mode;
+    if (/^drug\b|chemical\s+compound/.test(s)) return H.drug;
+
+    if (/^title$/.test(s)) return H.title;
+    if (/^citation$/.test(s)) return H.citation;
+
+    return cleanVal(h); // fallback (unused)
   }
 
-  function renderLink(url, label){
-    const href = sanitizeHttpUrl(url);
-    if (!href) return escapeHtml(label ?? "");
-    const safeLabel = escapeHtml((label ?? href).toString());
-    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
-  }
-
-  // --- Evidence link logic ---
-  // Evidence can be:
-  //  1) Excel hyperlink (cell.l.Target) -> we use that
-  //  2) Plain URL inside text -> linkify
+  // Evidence: if the cell has an Excel hyperlink -> use that; else linkify plain URLs in the text
   function linkifyPlainUrls(raw){
     raw = cleanVal(raw);
     if (!raw) return "—";
@@ -403,49 +420,41 @@
 
   function evidenceHtml(evidenceText, evidenceHref, pmcUrl){
     const t = cleanVal(evidenceText);
-
-    // If Excel provided hyperlink for Evidence cell -> clickable label (Table - PMC)
     const href = sanitizeHttpUrl(evidenceHref);
+
     if (href) return renderLink(href, t || "Open evidence link");
 
-    // Otherwise, linkify embedded URLs (if any)
     const html = linkifyPlainUrls(t);
 
-    // Optional fallback: if evidence is short label but no URL found, link to PMCID
-    if (!href && pmcUrl && t && t.length <= 80 && /^(table|figure|fig\.?|supp|appendix|dataset|data)\b/i.test(t)) {
+    // optional fallback: short label like "Table - PMC" with no URL -> link to PMCID page
+    if (pmcUrl && t && t.length <= 80 && /^(table|figure|fig\.?|supp|appendix|dataset|data)\b/i.test(t)) {
       return renderLink(pmcUrl, t);
     }
-
     return html || "—";
   }
 
   function detailsHtml(row) {
     const pmcUrl = pmcUrlFromId(row[H.pmc]);
+
     const title = cleanVal(row[H.title]);
     const citation = cleanVal(row[H.citation]);
     const testedIsolate = cleanVal(row[H.testedIsolate]);
 
-    // We store these extra fields from XLSX parsing:
     const evText = row.__evidence_text || row[H.evidence] || "";
     const evHref = row.__evidence_href || "";
 
-    const titleHtml = (pmcUrl && title)
-      ? renderLink(pmcUrl, title)
-      : escapeHtml(title || "—");
-
-    const evHtml = evidenceHtml(evText, evHref, pmcUrl);
+    const titleHtml = (pmcUrl && title) ? renderLink(pmcUrl, title) : escapeHtml(title || "—");
 
     return `
       <div class="detailsBox">
         <div><span class="k">Title:</span> ${titleHtml}</div>
         <div style="margin-top:8px;"><span class="k">Citation:</span> ${escapeHtml(citation || "—")}</div>
         <div style="margin-top:8px;"><span class="k">Tested isolate:</span> ${escapeHtml(testedIsolate || "—")}</div>
-        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${evHtml}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${evidenceHtml(evText, evHref, pmcUrl)}</div>
       </div>
     `;
   }
 
-  // ✅ Read XLSX and preserve hyperlinks
   async function loadXlsxRows(filename){
     const res = await fetch(filename);
     if (!res.ok) throw new Error(`Failed to load ${filename}: ${res.status}`);
@@ -459,13 +468,13 @@
     const range = XLSX.utils.decode_range(ws["!ref"]);
     const headerRow = range.s.r;
 
-    // Read headers from first row
+    // Read headers from first row, map to canonical keys
     const headers = [];
     for (let c = range.s.c; c <= range.e.c; c++){
       const addr = XLSX.utils.encode_cell({ r: headerRow, c });
       const cell = ws[addr];
-      const h = cleanVal(cell ? (cell.w ?? cell.v) : "");
-      headers.push(h);
+      const raw = cleanVal(cell ? (cell.w ?? cell.v) : "");
+      headers.push(canonicalHeader(raw));
     }
 
     // Build row objects
@@ -477,17 +486,20 @@
       for (let c = range.s.c; c <= range.e.c; c++){
         const addr = XLSX.utils.encode_cell({ r, c });
         const cell = ws[addr];
-        const key = headers[c - range.s.c] || `__col_${c}`;
+        const key = headers[c - range.s.c] || "";
 
         const text = cleanVal(cell ? (cell.w ?? cell.v) : "");
         if (text) any = true;
 
-        rowObj[key] = text;
+        // Only store canonical fields we care about
+        if (Object.values(H).includes(key)) {
+          rowObj[key] = text;
 
-        // ✅ Capture Evidence hyperlink if this is Evidence column
-        if (key === H.evidence && cell && cell.l && cell.l.Target) {
-          rowObj.__evidence_text = text;
-          rowObj.__evidence_href = cell.l.Target;
+          // capture Evidence hyperlink from Excel metadata
+          if (key === H.evidence && cell && cell.l && cell.l.Target) {
+            rowObj.__evidence_text = text;
+            rowObj.__evidence_href = cell.l.Target;
+          }
         }
       }
 
@@ -497,8 +509,8 @@
     return out;
   }
 
-  function initTable(rows){
-    // Fill-down PMCID if blank
+  function preprocess(rows){
+    // 1) Fill-down PMCID
     let lastPMC = "";
     rows.forEach(r => {
       const v = cleanVal(r[H.pmc]);
@@ -506,7 +518,7 @@
       else r[H.pmc] = lastPMC;
     });
 
-    // Ensure expected headers exist
+    // Ensure all expected fields exist
     const expected = Object.values(H);
     rows.forEach(r => {
       expected.forEach(h => { if (!(h in r)) r[h] = ""; });
@@ -514,6 +526,26 @@
       if (!("__evidence_href" in r)) r.__evidence_href = "";
     });
 
+    // 2) ✅ Fill-down Title + Citation PER PMCID (fixes your "—" issue)
+    const metaByPMC = {};
+    rows.forEach(r => {
+      const pmc = cleanVal(r[H.pmc]) || "__NO_PMC__";
+      if (!metaByPMC[pmc]) metaByPMC[pmc] = { title: "", citation: "" };
+
+      const t = cleanVal(r[H.title]);
+      const c = cleanVal(r[H.citation]);
+
+      if (t) metaByPMC[pmc].title = t;
+      else r[H.title] = metaByPMC[pmc].title;
+
+      if (c) metaByPMC[pmc].citation = c;
+      else r[H.citation] = metaByPMC[pmc].citation;
+    });
+
+    return rows;
+  }
+
+  function initTable(rows){
     const columns = [
       {
         title: "", data: null,
@@ -716,12 +748,12 @@
     });
   }
 
-  // ---- boot ----
   (async () => {
     try {
-      const rows = await loadXlsxRows(XLSX_FILE);
+      const rawRows = await loadXlsxRows(XLSX_FILE);
+      const rows = preprocess(rawRows);
       if (!rows.length) {
-        alert("No rows loaded. Check the sheet and header row.");
+        alert("No rows loaded. Check the sheet header row and file name.");
         return;
       }
       initTable(rows);
