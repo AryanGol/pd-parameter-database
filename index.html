@@ -27,7 +27,6 @@
       --card: rgba(255,255,255,0.92);
       --stroke: rgba(255,255,255,0.20);
       --text:#0b1220;
-      --muted: rgba(11,18,32,0.65);
       --shadow: 0 18px 45px rgba(0,0,0,0.25);
       --r: 18px;
       --p: #7c3aed;
@@ -44,10 +43,9 @@
         radial-gradient(900px 500px at 50% 95%, rgba(34,197,94,0.20), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
       color: white;
-      overflow-x: auto; /* allow page-level horizontal scroll if needed */
+      overflow-x: auto;
     }
 
-    /* Make layout use the full viewport width (no artificial max-width) */
     .wrap{ width: 100%; max-width: none; margin: 0; padding: 26px 16px 46px; box-sizing: border-box; }
 
     .hero{
@@ -127,7 +125,7 @@
       margin-top: 14px;
       border-radius: var(--r);
       background: var(--card);
-      color: var(--text);
+      color: #0b1220;
       box-shadow: var(--shadow);
       border: 1px solid rgba(255,255,255,0.16);
       overflow: hidden;
@@ -142,7 +140,6 @@
       color: #0b1220;
     }
 
-    /* Filter row */
     #tbl thead tr.filters th{
       background: rgba(255,255,255,0.98);
       padding: 8px 10px !important;
@@ -168,7 +165,6 @@
       color: #0b1220;
     }
 
-    /* Buttons + global search */
     .dataTables_wrapper .dataTables_filter input{
       border-radius: 999px;
       border: 1px solid rgba(0,0,0,0.15);
@@ -189,11 +185,11 @@
 
     table.dataTable tbody tr:hover{
       background: rgba(6,182,212,0.08) !important;
+      cursor: pointer;
     }
 
     .miniHint{ margin-top: 10px; font-size: 12px; color: rgba(11,18,32,0.65); }
 
-    /* Row details */
     td.details-control{
       cursor: pointer;
       white-space: nowrap;
@@ -217,19 +213,15 @@
       margin-right: 6px;
     }
 
-    /* ✅ Horizontal scrollbar wrapper */
     .tableWrap{
       width: 100%;
       overflow-x: auto;
       overflow-y: visible;
       -webkit-overflow-scrolling: touch;
     }
-
-    /* ✅ Ensure DataTables scroll area keeps horizontal scroll */
     .dataTables_scrollBody{
       overflow-x: auto !important;
     }
-
     .dataTables_wrapper { width: 100%; }
   </style>
 </head>
@@ -243,7 +235,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Full-width table. Expand a row to view Title + Citation + Evidence + Drug concentration/time.</div>
+          <div class="sub">Click a row (or “+”) to view Title + Citation + Evidence (link) + Tested isolate.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -256,18 +248,18 @@
       </div>
 
       <div class="field">
-        <label>Search by PMC ID (global)</label>
-        <input id="pmcGlobal" type="text" placeholder="PMC10060419">
+        <label>Search by PMCID (global)</label>
+        <input id="pmcGlobal" type="text" placeholder="PMC10174691">
       </div>
 
       <div class="field">
         <label>Search by Parameter (global)</label>
-        <input id="paramGlobal" type="text" placeholder="MIC, EC50, ...">
+        <input id="paramGlobal" type="text" placeholder="MIC, EC50, growth rate...">
       </div>
 
       <div class="field">
         <label>Search by Drug/compound (global)</label>
-        <input id="drugGlobal" type="text" placeholder="Zinc Oxide...">
+        <input id="drugGlobal" type="text" placeholder="Vancomycin...">
       </div>
 
       <div class="field">
@@ -278,7 +270,7 @@
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-          Click “+” at the start of a row to view the hidden fields.
+          Tip: The “Evidence” inside row details is clickable and will open your provided evidence link.
         </div>
       </div>
     </div>
@@ -286,7 +278,6 @@
 
   <div class="card">
     <div class="pad">
-      <!-- ✅ Scroll container so you can slide left/right -->
       <div class="tableWrap">
         <table id="tbl" class="display nowrap" style="width:100%">
           <thead></thead>
@@ -300,45 +291,53 @@
 
 <script>
 (function () {
-  // CSV headers (must match exactly)
+  // === CSV headers (MUST match your new dataset exactly) ===
   const H = {
-    pmc: "PMC ID",
+    pmc: "PMCID",
     parameter: "Parameter",
     value: "Reported numerical value",
     unit: "Unit",
-    species: "Bacterial species name",
-    strain: "Bacterial strain(s)",
-    source: "Source of isolates",
-    status: "Wild-type or mutant status",
-    mode: "Biofilm / planktonic / mixed",
+
+    species: "Bacterial species name(s) in that isolate",
+    strain: "Bacterial strain(s) in that isolate",
+    source: "Source of biological entities in that isolate",
+    status: "Wild-type or mutant status / genotype name in that isolate",
+    mode: "Biofilm / planktonic / mixed in that isolate",
     drug: "Drug or chemical compound name(s)",
-    drugDose: "Drug amount/concentration with unit and time",
-    evidence: "Evidence - First Sentence of paragraph with numerical data",
+
+    testedIsolate: "Tested Isolate",
+    evidence: "Evidence",
+    evidenceLink: "Evidence link", // optional (URL). If not present, we also detect URL in Evidence.
     title: "Title",
     citation: "Citation"
   };
 
-  // Visible table columns: keep first 10 CSV columns, hide the last 4
+  // Visible columns in the table view
   const VISIBLE_HEADERS = [
-    H.pmc, H.parameter, H.value, H.unit, H.species, H.strain,
-    H.source, H.status, H.mode, H.drug
+    H.pmc, H.parameter, H.value, H.unit,
+    H.species, H.strain, H.source, H.status, H.mode, H.drug
   ];
 
-  // Columns that should ALSO show dropdown options (besides text search)
   const DROPDOWN_COLS = new Set([
-    H.parameter,
-    H.value,
-    H.unit,
-    H.species,
-    H.strain,
-    H.source,
-    H.status,
-    H.mode,
-    H.drug
+    H.parameter, H.unit, H.species, H.strain, H.source, H.status, H.mode, H.drug
   ]);
 
+  function cleanVal(x){
+    const v = (x ?? "").toString().trim();
+    if (!v) return "";
+    if (/^(nan|null|none)$/i.test(v)) return "";
+    return v;
+  }
+
+  function pmcUrlFromId(pmcid) {
+    const v = cleanVal(pmcid);
+    const m = v.match(/^PMC?(\d+)$/i);
+    if (!m) return "";
+    return `https://pmc.ncbi.nlm.nih.gov/articles/PMC${m[1]}/`;
+  }
+
   function pmcLink(pmcid) {
-    const v = String(pmcid || "").trim();
+    const v = cleanVal(pmcid);
     if (!v) return "";
     const m = v.match(/^PMC?(\d+)$/i);
     if (m) {
@@ -346,45 +345,69 @@
       const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
       return `<a href="${url}" target="_blank" rel="noopener noreferrer">PMC${id}</a>`;
     }
-    return v;
-  }
-
-  function pmcUrlFromId(pmcid) {
-    const v = String(pmcid || "").trim();
-    const m = v.match(/^PMC?(\d+)$/i);
-    if (!m) return "";
-    return `https://pmc.ncbi.nlm.nih.gov/articles/PMC${m[1]}/`;
+    return $("<div>").text(v).html();
   }
 
   function uniqueSorted(arr) {
     return Array.from(
-      new Set(arr.map(x => (x ?? "").toString().trim()).filter(Boolean))
+      new Set(arr.map(x => cleanVal(x)).filter(Boolean))
     ).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
+  function looksLikeUrl(s){
+    return /^https?:\/\/\S+/i.test(cleanVal(s));
+  }
+
+  function getEvidenceUrl(row){
+    // 1) Prefer explicit evidenceLink column if present
+    const direct = cleanVal(row[H.evidenceLink]);
+    if (looksLikeUrl(direct)) return direct;
+
+    // 2) If Evidence itself is a URL, use it
+    const ev = cleanVal(row[H.evidence]);
+    if (looksLikeUrl(ev)) return ev;
+
+    // 3) Heuristic: find any column that looks like "evidence ... url/link"
+    for (const k of Object.keys(row || {})) {
+      if (/evidence/i.test(k) && /(url|link)/i.test(k)) {
+        const cand = cleanVal(row[k]);
+        if (looksLikeUrl(cand)) return cand;
+      }
+    }
+    return "";
+  }
+
   function detailsHtml(row) {
-    const citation = (row[H.citation] ?? "").toString().trim();
-    const evidence = (row[H.evidence] ?? "").toString().trim();
-    const drugDose = (row[H.drugDose] ?? "").toString().trim();
-    const title = (row[H.title] ?? "").toString().trim();
+    const title = cleanVal(row[H.title]);
+    const citation = cleanVal(row[H.citation]);
+    const evidence = cleanVal(row[H.evidence]);
+    const testedIsolate = cleanVal(row[H.testedIsolate]);
 
-    const url = pmcUrlFromId(row[H.pmc]);
+    const pmcUrl = pmcUrlFromId(row[H.pmc]);
+    const evidenceUrl = getEvidenceUrl(row);
 
-    const safeCitation = $("<div>").text(citation || "—").html();
-    const safeEvidence = $("<div>").text(evidence || "—").html();
-    const safeDrugDose = $("<div>").text(drugDose || "—").html();
     const safeTitle = $("<div>").text(title || "—").html();
+    const safeCitation = $("<div>").text(citation || "—").html();
+    const safeEvidenceText = $("<div>").text(
+      (looksLikeUrl(evidence) ? "" : evidence) || "—"
+    ).html();
+    const safeTested = $("<div>").text(testedIsolate || "—").html();
 
-    const titleHtml = url && title
-      ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
+    const titleHtml = (pmcUrl && title)
+      ? `<a href="${pmcUrl}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
       : safeTitle;
+
+    const evidenceHtml = evidenceUrl
+      ? `<a href="${evidenceUrl}" target="_blank" rel="noopener noreferrer">Open evidence link</a>`
+      : "—";
 
     return `
       <div class="detailsBox">
         <div><span class="k">Title:</span> ${titleHtml}</div>
         <div style="margin-top:8px;"><span class="k">Citation:</span> ${safeCitation}</div>
-        <div style="margin-top:8px;"><span class="k">Evidence (first sentence):</span> ${safeEvidence}</div>
-        <div style="margin-top:8px;"><span class="k">Drug amount / concentration (time):</span> ${safeDrugDose}</div>
+        <div style="margin-top:8px;"><span class="k">Tested isolate:</span> ${safeTested}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${safeEvidenceText}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence link:</span> ${evidenceHtml}</div>
       </div>
     `;
   }
@@ -395,27 +418,28 @@
     skipEmptyLines: true,
     complete: function (results) {
       let rows = (results.data || []).filter(r =>
-        Object.values(r).some(v => (v ?? "").toString().trim() !== "")
+        Object.values(r).some(v => cleanVal(v) !== "")
       );
       if (!rows.length) return;
 
-      // Fill-down PMC ID if blank
+      // Fill-down PMCID if blank
       let lastPMC = "";
       rows.forEach(r => {
-        const v = (r[H.pmc] ?? "").toString().trim();
+        const v = cleanVal(r[H.pmc]);
         if (v) lastPMC = v;
         else r[H.pmc] = lastPMC;
       });
 
-      // Ensure all expected headers exist on each row (avoid undefined)
-      const allHeaders = Object.values(H);
+      // Ensure expected headers exist on each row (avoid undefined access)
+      const expected = Object.values(H);
       rows.forEach(r => {
-        allHeaders.forEach(h => { if (!(h in r)) r[h] = ""; });
+        expected.forEach(h => { if (!(h in r)) r[h] = ""; });
       });
 
       // DataTables columns:
-      // 1 extra control column for expanding row details (NOT a CSV column)
-      // then ONLY the visible columns
+      // 1) expand-control col
+      // 2) visible columns
+      // 3) hidden-but-searchable columns (Title/Citation/Evidence/Tested isolate/ Evidence link)
       const columns = [
         {
           title: "", data: null,
@@ -429,18 +453,24 @@
         ...VISIBLE_HEADERS.map(h => ({
           title: h,
           data: h,
-          render: function (data, type, row) {
+          render: function (data) {
             if (h === H.pmc) return pmcLink(data);
-            return (data ?? "").toString();
+            return cleanVal(data);
           }
-        }))
+        })),
+
+        // Hidden searchable columns (so Title global search works)
+        { title: H.title, data: H.title, visible: false, searchable: true },
+        { title: H.citation, data: H.citation, visible: false, searchable: true },
+        { title: H.testedIsolate, data: H.testedIsolate, visible: false, searchable: true },
+        { title: H.evidence, data: H.evidence, visible: false, searchable: true },
+        { title: H.evidenceLink, data: H.evidenceLink, visible: false, searchable: true }
       ];
 
-      // Build THEAD: titles + filters
+      // Build THEAD (titles + filters) for visible columns only
       const $titleRow = $("<tr/>");
       const $filterRow = $("<tr class='filters'/>");
 
-      // Control column header + empty filter cell
       $titleRow.append(`<th></th>`);
       $filterRow.append(`<th></th>`);
 
@@ -468,13 +498,9 @@
       const table = $("#tbl").DataTable({
         data: rows,
         columns: columns,
-
         responsive: false,
-
-        /* ✅ ENABLE horizontal scrollbar */
         scrollX: true,
         scrollCollapse: true,
-
         fixedHeader: true,
 
         pageLength: 25,
@@ -492,7 +518,7 @@
         ],
 
         orderCellsTop: true,
-        order: [[ 1, "asc" ]] // sort by "PMC ID" (DT index 1)
+        order: [[ 1, "asc" ]]
       });
 
       // Row count badge
@@ -503,14 +529,13 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // Populate dropdown options ONLY for selected visible columns
+      // Populate dropdowns for selected visible columns
       VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
         const dtIdx = idxZeroBased + 1;
         if (!DROPDOWN_COLS.has(h)) return;
 
         const col = table.column(dtIdx);
-        let values = col.data().toArray();
-        values = uniqueSorted(values);
+        let values = uniqueSorted(col.data().toArray());
 
         const $selects = $(`select[data-col-idx="${dtIdx}"]`);
         $selects.each(function () {
@@ -551,7 +576,7 @@
         ).draw();
       });
 
-      // Global search helpers
+      // Global search helpers (visible columns only)
       const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
       const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
       const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
@@ -570,25 +595,40 @@
         table.column(idxSpecies).search(e.target.value || "", false, true).draw();
       });
 
-      // Title search (hidden field) -> global search across row text
+      // Title search (works because Title is a hidden searchable column)
       document.getElementById("titleGlobal").addEventListener("input", (e) => {
         table.search(e.target.value || "", false, true).draw();
       });
 
-      // Row details: click "+" cell to toggle details panel
-      $("#tbl tbody").on("click", "td.details-control", function () {
-        const tr = $(this).closest("tr");
+      function toggleRow(tr){
         const row = table.row(tr);
+        const $tr = $(tr);
+        const $ctrl = $tr.find("td.details-control");
+
+        if (!$ctrl.length) return;
 
         if (row.child.isShown()) {
           row.child.hide();
-          tr.removeClass("shown");
-          $(this).text("+");
+          $tr.removeClass("shown");
+          $ctrl.text("+");
         } else {
           row.child(detailsHtml(row.data())).show();
-          tr.addClass("shown");
-          $(this).text("–");
+          $tr.addClass("shown");
+          $ctrl.text("–");
         }
+      }
+
+      // Click "+" cell to toggle
+      $("#tbl tbody").on("click", "td.details-control", function (e) {
+        e.stopPropagation();
+        toggleRow($(this).closest("tr"));
+      });
+
+      // Click anywhere on row (except links) to toggle
+      $("#tbl tbody").on("click", "tr", function (e) {
+        if ($(this).hasClass("child")) return;
+        if ($(e.target).closest("a, button, input, select, textarea, label").length) return;
+        toggleRow(this);
       });
 
       // Clear all filters
