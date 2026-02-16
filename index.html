@@ -270,7 +270,7 @@
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-          Tip: Any http(s) link inside the Evidence cell becomes clickable automatically.
+          Evidence supports: plain URLs, Markdown links [text](url), Excel =HYPERLINK("url","text").
         </div>
       </div>
     </div>
@@ -298,7 +298,6 @@
     value: "Reported numerical value",
     unit: "Unit",
 
-    // isolate info
     testedIsolate: "Tested Isolate",
     species: "Bacterial species name(s) in that isolate",
     strain: "Bacterial strain(s) in that isolate",
@@ -307,19 +306,16 @@
     mode: "Biofilm / planktonic / mixed in that isolate",
     drug: "Drug or chemical compound name(s)",
 
-    // details
     title: "Title",
     citation: "Citation",
     evidence: "Evidence"
   };
 
-  // Visible columns in the table view (first 10 you requested)
   const VISIBLE_HEADERS = [
     H.pmc, H.parameter, H.value, H.unit,
     H.species, H.strain, H.source, H.status, H.mode, H.drug
   ];
 
-  // Columns that get dropdown options
   const DROPDOWN_COLS = new Set([
     H.parameter, H.unit, H.species, H.strain, H.source, H.status, H.mode, H.drug
   ]);
@@ -333,6 +329,12 @@
 
   function escapeHtml(s){
     return $("<div>").text(s ?? "").html();
+  }
+
+  function sanitizeHttpUrl(u){
+    u = cleanVal(u);
+    if (!/^https?:\/\/\S+/i.test(u)) return "";
+    return u;
   }
 
   function pmcUrlFromId(pmcid) {
@@ -360,51 +362,117 @@
     ).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
-  function looksLikeUrlOnly(s){
-    return /^https?:\/\/\S+$/i.test(cleanVal(s));
+  function stripHtmlToText(html){
+    return $("<div>").html(html ?? "").text();
   }
 
-  // Linkify http(s) URLs inside Evidence text
-  // - If Evidence is only a URL: show "Open evidence link"
-  // - If Evidence contains embedded URL(s): make them clickable inline
-  function linkifyText(raw){
+  function renderLink(url, label){
+    const href = sanitizeHttpUrl(url);
+    if (!href) return escapeHtml(label ?? "");
+    const safeLabel = escapeHtml((label ?? href).toString());
+    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+  }
+
+  // Excel: =HYPERLINK("url","label") OR =HYPERLINK("url";"label")
+  function parseExcelHyperlinkFormula(s){
+    s = cleanVal(s);
+    const m = s.match(/^=HYPERLINK\(\s*"([^"]+)"\s*[;,]\s*"([^"]*)"\s*\)\s*$/i);
+    if (!m) return null;
+    const url = sanitizeHttpUrl(m[1]);
+    const label = m[2] || m[1];
+    if (!url) return null;
+    return { url, label };
+  }
+
+  // Converts Evidence to HTML with clickable links.
+  // Supports:
+  //  - Excel hyperlink formula
+  //  - Markdown [text](url)
+  //  - Existing <a href="url">text</a> (sanitized/rebuilt)
+  //  - Plain URLs in text
+  // Fallback:
+  //  - If no URL found AND evidence is short label like "Table - PMC", link to PMCID article.
+  function linkifyEvidence(raw, pmcUrl){
     raw = cleanVal(raw);
     if (!raw) return "—";
 
-    if (looksLikeUrlOnly(raw)) {
-      const href = escapeHtml(raw);
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer">Open evidence link</a>`;
+    // 1) Excel HYPERLINK formula
+    const xl = parseExcelHyperlinkFormula(raw);
+    if (xl) return renderLink(xl.url, xl.label);
+
+    // 2) If contains HTML anchors, rebuild safely (keep surrounding text too)
+    // We'll replace each <a ...>...</a> with safe version.
+    let htmlOut = "";
+    let lastIdx = 0;
+    let found = false;
+
+    const anchorRe = /<a\s+[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    raw.replace(anchorRe, (match, href, inner, offset) => {
+      found = true;
+      htmlOut += escapeHtml(raw.slice(lastIdx, offset));
+      htmlOut += renderLink(href, stripHtmlToText(inner));
+      lastIdx = offset + match.length;
+      return match;
+    });
+    if (found) {
+      htmlOut += escapeHtml(raw.slice(lastIdx));
+      return htmlOut || "—";
     }
 
-    // Matches URLs but tries to avoid ending with common trailing punctuation.
-    const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
+    // 3) Markdown links [text](url)
+    const mdRe = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi;
+    let mdFound = false;
+    let mdOut = "";
+    lastIdx = 0;
 
+    raw.replace(mdRe, (match, text, url, offset) => {
+      mdFound = true;
+      mdOut += escapeHtml(raw.slice(lastIdx, offset));
+      mdOut += renderLink(url, text);
+      lastIdx = offset + match.length;
+      return match;
+    });
+    if (mdFound) {
+      mdOut += escapeHtml(raw.slice(lastIdx));
+      return mdOut || "—";
+    }
+
+    // 4) Plain URLs in text (linkify)
+    const urlRe = /(https?:\/\/[^\s<>"']+)/gi;
+    let urlFound = false;
     let out = "";
-    let last = 0;
+    lastIdx = 0;
 
-    raw.replace(urlRegex, (match, _g1, offset) => {
-      // Trim trailing punctuation that often sticks to URLs in text
+    raw.replace(urlRe, (match, _g1, offset) => {
+      urlFound = true;
+
+      // Trim trailing punctuation that often sticks to URLs
       let url = match;
       while (/[),.;:\]]$/.test(url)) url = url.slice(0, -1);
 
-      const consumed = match.length;
+      out += escapeHtml(raw.slice(lastIdx, offset));
+      out += renderLink(url, url);
 
-      out += escapeHtml(raw.slice(last, offset));
+      const tail = match.slice(url.length);
+      if (tail) out += escapeHtml(tail);
 
-      const href = escapeHtml(url);
-      const label = escapeHtml(url);
-      out += `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-
-      // add back any trimmed chars as normal text
-      const trimmedTail = match.slice(url.length);
-      if (trimmedTail) out += escapeHtml(trimmedTail);
-
-      last = offset + consumed;
+      lastIdx = offset + match.length;
       return match;
     });
 
-    out += escapeHtml(raw.slice(last));
-    return out || "—";
+    if (urlFound) {
+      out += escapeHtml(raw.slice(lastIdx));
+      return out || "—";
+    }
+
+    // 5) Fallback: if evidence is short label (e.g., "Table - PMC"), link to PMCID article
+    const isShort = raw.length <= 80;
+    const looksLikeLabel = /^(table|figure|fig\.?|supp|appendix|dataset|data)\b/i.test(raw) || /^table\s*-\s*pmc/i.test(raw);
+    if (pmcUrl && isShort && looksLikeLabel) {
+      return renderLink(pmcUrl, raw);
+    }
+
+    return escapeHtml(raw);
   }
 
   function detailsHtml(row) {
@@ -415,15 +483,13 @@
 
     const pmcUrl = pmcUrlFromId(row[H.pmc]);
 
-    const safeTitle = escapeHtml(title || "—");
+    const titleHtml = (pmcUrl && title)
+      ? renderLink(pmcUrl, title)
+      : escapeHtml(title || "—");
+
     const safeCitation = escapeHtml(citation || "—");
     const safeTested = escapeHtml(testedIsolate || "—");
-
-    const titleHtml = (pmcUrl && title)
-      ? `<a href="${escapeHtml(pmcUrl)}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
-      : safeTitle;
-
-    const evidenceHtml = linkifyText(evidenceRaw);
+    const evidenceHtml = linkifyEvidence(evidenceRaw, pmcUrl);
 
     return `
       <div class="detailsBox">
@@ -453,16 +519,12 @@
         else r[H.pmc] = lastPMC;
       });
 
-      // Ensure expected headers exist on each row (avoid undefined access)
+      // Ensure expected headers exist on each row
       const expected = Object.values(H);
       rows.forEach(r => {
         expected.forEach(h => { if (!(h in r)) r[h] = ""; });
       });
 
-      // DataTables columns:
-      // 1) expand-control col
-      // 2) visible columns
-      // 3) hidden but searchable columns (Title/Citation/Evidence/Tested isolate)
       const columns = [
         {
           title: "", data: null,
@@ -481,13 +543,14 @@
             return cleanVal(data);
           }
         })),
+        // Hidden searchable columns
         { title: H.title, data: H.title, visible: false, searchable: true },
         { title: H.citation, data: H.citation, visible: false, searchable: true },
         { title: H.testedIsolate, data: H.testedIsolate, visible: false, searchable: true },
         { title: H.evidence, data: H.evidence, visible: false, searchable: true }
       ];
 
-      // Build THEAD (titles + filters) for visible columns only
+      // Build THEAD (titles + filters)
       const $titleRow = $("<tr/>");
       const $filterRow = $("<tr class='filters'/>");
 
@@ -495,7 +558,7 @@
       $filterRow.append(`<th></th>`);
 
       VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
-        const dtIdx = idxZeroBased + 1; // +1 because of control column
+        const dtIdx = idxZeroBased + 1;
         $titleRow.append(`<th>${h}</th>`);
 
         const hasDropdown = DROPDOWN_COLS.has(h);
@@ -541,7 +604,6 @@
         order: [[ 1, "asc" ]]
       });
 
-      // Row count badge
       const updateCount = () => {
         const n = table.rows({ filter: "applied" }).count();
         document.getElementById("rowCount").textContent = `${n} rows`;
@@ -549,7 +611,7 @@
       updateCount();
       table.on("draw", updateCount);
 
-      // Populate dropdowns for selected visible columns
+      // Populate dropdowns
       VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
         const dtIdx = idxZeroBased + 1;
         if (!DROPDOWN_COLS.has(h)) return;
@@ -568,12 +630,11 @@
         });
       });
 
-      // Delegated handlers so FixedHeader clones also work
+      // Column filter handlers
       $(document).on("keyup change", 'input[data-col-idx]', function () {
         const idx = Number(this.getAttribute("data-col-idx"));
         const col = table.column(idx);
 
-        // Clear sibling dropdown (if present)
         const $cell = $(this).closest(".colFilter");
         $cell.find('select[data-col-idx]').val("");
 
@@ -585,7 +646,6 @@
         const col = table.column(idx);
         const val = $(this).val();
 
-        // Clear sibling input
         const $cell = $(this).closest(".colFilter");
         $cell.find('input[data-col-idx]').val("");
 
@@ -596,7 +656,7 @@
         ).draw();
       });
 
-      // Global search helpers (visible columns only)
+      // Global search helpers
       const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
       const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
       const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
@@ -615,7 +675,6 @@
         table.column(idxSpecies).search(e.target.value || "", false, true).draw();
       });
 
-      // Title search (works because Title is a hidden searchable column)
       document.getElementById("titleGlobal").addEventListener("input", (e) => {
         table.search(e.target.value || "", false, true).draw();
       });
@@ -637,20 +696,17 @@
         }
       }
 
-      // Click "+" cell to toggle
       $("#tbl tbody").on("click", "td.details-control", function (e) {
         e.stopPropagation();
         toggleRow($(this).closest("tr"));
       });
 
-      // Click anywhere on row (except links) to toggle
       $("#tbl tbody").on("click", "tr", function (e) {
         if ($(this).hasClass("child")) return;
         if ($(e.target).closest("a, button, input, select, textarea, label").length) return;
         toggleRow(this);
       });
 
-      // Clear all filters
       document.getElementById("clearAll").addEventListener("click", () => {
         table.search("");
         table.columns().search("");
@@ -664,7 +720,6 @@
         document.getElementById("drugGlobal").value = "";
         document.getElementById("speciesGlobal").value = "";
 
-        // Close any open row details
         table.rows().every(function () {
           if (this.child.isShown()) this.child.hide();
         });
