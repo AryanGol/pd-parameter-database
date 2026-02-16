@@ -125,7 +125,7 @@
       margin-top: 14px;
       border-radius: var(--r);
       background: var(--card);
-      color: #0b1220;
+      color: var(--text);
       box-shadow: var(--shadow);
       border: 1px solid rgba(255,255,255,0.16);
       overflow: hidden;
@@ -235,7 +235,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Click a row (or “+”) to view Title + Citation + Evidence (link) + Tested isolate.</div>
+          <div class="sub">Click a row (or “+”) to view Title + Citation + Evidence (auto-link) + Tested isolate.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -270,7 +270,7 @@
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-          Tip: The “Evidence” inside row details is clickable and will open your provided evidence link.
+          Tip: Any http(s) link inside the Evidence cell becomes clickable automatically.
         </div>
       </div>
     </div>
@@ -291,13 +291,15 @@
 
 <script>
 (function () {
-  // === CSV headers (MUST match your new dataset exactly) ===
+  // === CSV headers (MUST match your dataset exactly) ===
   const H = {
     pmc: "PMCID",
     parameter: "Parameter",
     value: "Reported numerical value",
     unit: "Unit",
 
+    // isolate info
+    testedIsolate: "Tested Isolate",
     species: "Bacterial species name(s) in that isolate",
     strain: "Bacterial strain(s) in that isolate",
     source: "Source of biological entities in that isolate",
@@ -305,19 +307,19 @@
     mode: "Biofilm / planktonic / mixed in that isolate",
     drug: "Drug or chemical compound name(s)",
 
-    testedIsolate: "Tested Isolate",
-    evidence: "Evidence",
-    evidenceLink: "Evidence link", // optional (URL). If not present, we also detect URL in Evidence.
+    // details
     title: "Title",
-    citation: "Citation"
+    citation: "Citation",
+    evidence: "Evidence"
   };
 
-  // Visible columns in the table view
+  // Visible columns in the table view (first 10 you requested)
   const VISIBLE_HEADERS = [
     H.pmc, H.parameter, H.value, H.unit,
     H.species, H.strain, H.source, H.status, H.mode, H.drug
   ];
 
+  // Columns that get dropdown options
   const DROPDOWN_COLS = new Set([
     H.parameter, H.unit, H.species, H.strain, H.source, H.status, H.mode, H.drug
   ]);
@@ -327,6 +329,10 @@
     if (!v) return "";
     if (/^(nan|null|none)$/i.test(v)) return "";
     return v;
+  }
+
+  function escapeHtml(s){
+    return $("<div>").text(s ?? "").html();
   }
 
   function pmcUrlFromId(pmcid) {
@@ -345,7 +351,7 @@
       const url = `https://pmc.ncbi.nlm.nih.gov/articles/PMC${id}/`;
       return `<a href="${url}" target="_blank" rel="noopener noreferrer">PMC${id}</a>`;
     }
-    return $("<div>").text(v).html();
+    return escapeHtml(v);
   }
 
   function uniqueSorted(arr) {
@@ -354,60 +360,77 @@
     ).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
-  function looksLikeUrl(s){
-    return /^https?:\/\/\S+/i.test(cleanVal(s));
+  function looksLikeUrlOnly(s){
+    return /^https?:\/\/\S+$/i.test(cleanVal(s));
   }
 
-  function getEvidenceUrl(row){
-    // 1) Prefer explicit evidenceLink column if present
-    const direct = cleanVal(row[H.evidenceLink]);
-    if (looksLikeUrl(direct)) return direct;
+  // Linkify http(s) URLs inside Evidence text
+  // - If Evidence is only a URL: show "Open evidence link"
+  // - If Evidence contains embedded URL(s): make them clickable inline
+  function linkifyText(raw){
+    raw = cleanVal(raw);
+    if (!raw) return "—";
 
-    // 2) If Evidence itself is a URL, use it
-    const ev = cleanVal(row[H.evidence]);
-    if (looksLikeUrl(ev)) return ev;
-
-    // 3) Heuristic: find any column that looks like "evidence ... url/link"
-    for (const k of Object.keys(row || {})) {
-      if (/evidence/i.test(k) && /(url|link)/i.test(k)) {
-        const cand = cleanVal(row[k]);
-        if (looksLikeUrl(cand)) return cand;
-      }
+    if (looksLikeUrlOnly(raw)) {
+      const href = escapeHtml(raw);
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">Open evidence link</a>`;
     }
-    return "";
+
+    // Matches URLs but tries to avoid ending with common trailing punctuation.
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
+
+    let out = "";
+    let last = 0;
+
+    raw.replace(urlRegex, (match, _g1, offset) => {
+      // Trim trailing punctuation that often sticks to URLs in text
+      let url = match;
+      while (/[),.;:\]]$/.test(url)) url = url.slice(0, -1);
+
+      const consumed = match.length;
+
+      out += escapeHtml(raw.slice(last, offset));
+
+      const href = escapeHtml(url);
+      const label = escapeHtml(url);
+      out += `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+
+      // add back any trimmed chars as normal text
+      const trimmedTail = match.slice(url.length);
+      if (trimmedTail) out += escapeHtml(trimmedTail);
+
+      last = offset + consumed;
+      return match;
+    });
+
+    out += escapeHtml(raw.slice(last));
+    return out || "—";
   }
 
   function detailsHtml(row) {
     const title = cleanVal(row[H.title]);
     const citation = cleanVal(row[H.citation]);
-    const evidence = cleanVal(row[H.evidence]);
     const testedIsolate = cleanVal(row[H.testedIsolate]);
+    const evidenceRaw = row[H.evidence];
 
     const pmcUrl = pmcUrlFromId(row[H.pmc]);
-    const evidenceUrl = getEvidenceUrl(row);
 
-    const safeTitle = $("<div>").text(title || "—").html();
-    const safeCitation = $("<div>").text(citation || "—").html();
-    const safeEvidenceText = $("<div>").text(
-      (looksLikeUrl(evidence) ? "" : evidence) || "—"
-    ).html();
-    const safeTested = $("<div>").text(testedIsolate || "—").html();
+    const safeTitle = escapeHtml(title || "—");
+    const safeCitation = escapeHtml(citation || "—");
+    const safeTested = escapeHtml(testedIsolate || "—");
 
     const titleHtml = (pmcUrl && title)
-      ? `<a href="${pmcUrl}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
+      ? `<a href="${escapeHtml(pmcUrl)}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>`
       : safeTitle;
 
-    const evidenceHtml = evidenceUrl
-      ? `<a href="${evidenceUrl}" target="_blank" rel="noopener noreferrer">Open evidence link</a>`
-      : "—";
+    const evidenceHtml = linkifyText(evidenceRaw);
 
     return `
       <div class="detailsBox">
         <div><span class="k">Title:</span> ${titleHtml}</div>
         <div style="margin-top:8px;"><span class="k">Citation:</span> ${safeCitation}</div>
         <div style="margin-top:8px;"><span class="k">Tested isolate:</span> ${safeTested}</div>
-        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${safeEvidenceText}</div>
-        <div style="margin-top:8px;"><span class="k">Evidence link:</span> ${evidenceHtml}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${evidenceHtml}</div>
       </div>
     `;
   }
@@ -439,7 +462,7 @@
       // DataTables columns:
       // 1) expand-control col
       // 2) visible columns
-      // 3) hidden-but-searchable columns (Title/Citation/Evidence/Tested isolate/ Evidence link)
+      // 3) hidden but searchable columns (Title/Citation/Evidence/Tested isolate)
       const columns = [
         {
           title: "", data: null,
@@ -458,13 +481,10 @@
             return cleanVal(data);
           }
         })),
-
-        // Hidden searchable columns (so Title global search works)
         { title: H.title, data: H.title, visible: false, searchable: true },
         { title: H.citation, data: H.citation, visible: false, searchable: true },
         { title: H.testedIsolate, data: H.testedIsolate, visible: false, searchable: true },
-        { title: H.evidence, data: H.evidence, visible: false, searchable: true },
-        { title: H.evidenceLink, data: H.evidenceLink, visible: false, searchable: true }
+        { title: H.evidence, data: H.evidence, visible: false, searchable: true }
       ];
 
       // Build THEAD (titles + filters) for visible columns only
@@ -542,7 +562,7 @@
           const $sel = $(this);
           $sel.find("option:not(:first)").remove();
           values.forEach(v => {
-            const safe = $("<div>").text(v).html();
+            const safe = escapeHtml(v);
             $sel.append(`<option value="${safe}">${safe}</option>`);
           });
         });
@@ -604,7 +624,6 @@
         const row = table.row(tr);
         const $tr = $(tr);
         const $ctrl = $tr.find("td.details-control");
-
         if (!$ctrl.length) return;
 
         if (row.child.isShown()) {
