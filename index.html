@@ -18,7 +18,9 @@
   <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.datatables.net/fixedheader/3.4.0/js/dataTables.fixedHeader.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <!-- ✅ SheetJS for reading XLSX (preserves hyperlinks) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     :root{
@@ -235,7 +237,7 @@
         <div class="logo"></div>
         <div>
           <h1>Pharmacodynamic Parameter Database</h1>
-          <div class="sub">Click a row (or “+”) to view Title + Citation + Evidence (auto-link) + Tested isolate.</div>
+          <div class="sub">Loads XLSX (data-16Feb.xlsx). Evidence hyperlinks from Excel become clickable.</div>
         </div>
       </div>
       <div class="badge"><span class="dot"></span><span id="rowCount">0 rows</span></div>
@@ -270,7 +272,7 @@
       <div class="field wide">
         <button id="clearAll">Clear all filters</button>
         <div class="miniHint">
-          Evidence supports: plain URLs, Markdown links [text](url), Excel =HYPERLINK("url","text").
+          Tip: Evidence hyperlinks come from Excel cell hyperlinks (not CSV). Embedded URLs still work too.
         </div>
       </div>
     </div>
@@ -291,7 +293,10 @@
 
 <script>
 (function () {
-  // === CSV headers (MUST match your dataset exactly) ===
+  // ✅ XLSX filename
+  const XLSX_FILE = "data-16Feb.xlsx";
+
+  // === Column headers (MUST match your sheet header row exactly) ===
   const H = {
     pmc: "PMCID",
     parameter: "Parameter",
@@ -326,16 +331,7 @@
     if (/^(nan|null|none)$/i.test(v)) return "";
     return v;
   }
-
-  function escapeHtml(s){
-    return $("<div>").text(s ?? "").html();
-  }
-
-  function sanitizeHttpUrl(u){
-    u = cleanVal(u);
-    if (!/^https?:\/\/\S+/i.test(u)) return "";
-    return u;
-  }
+  function escapeHtml(s){ return $("<div>").text(s ?? "").html(); }
 
   function pmcUrlFromId(pmcid) {
     const v = cleanVal(pmcid);
@@ -343,7 +339,6 @@
     if (!m) return "";
     return `https://pmc.ncbi.nlm.nih.gov/articles/PMC${m[1]}/`;
   }
-
   function pmcLink(pmcid) {
     const v = cleanVal(pmcid);
     if (!v) return "";
@@ -357,13 +352,14 @@
   }
 
   function uniqueSorted(arr) {
-    return Array.from(
-      new Set(arr.map(x => cleanVal(x)).filter(Boolean))
-    ).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
+    return Array.from(new Set(arr.map(x => cleanVal(x)).filter(Boolean)))
+      .sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
   }
 
-  function stripHtmlToText(html){
-    return $("<div>").html(html ?? "").text();
+  function sanitizeHttpUrl(u){
+    u = cleanVal(u);
+    if (!/^https?:\/\/\S+/i.test(u)) return "";
+    return u;
   }
 
   function renderLink(url, label){
@@ -373,363 +369,368 @@
     return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
   }
 
-  // Excel: =HYPERLINK("url","label") OR =HYPERLINK("url";"label")
-  function parseExcelHyperlinkFormula(s){
-    s = cleanVal(s);
-    const m = s.match(/^=HYPERLINK\(\s*"([^"]+)"\s*[;,]\s*"([^"]*)"\s*\)\s*$/i);
-    if (!m) return null;
-    const url = sanitizeHttpUrl(m[1]);
-    const label = m[2] || m[1];
-    if (!url) return null;
-    return { url, label };
-  }
-
-  // Converts Evidence to HTML with clickable links.
-  // Supports:
-  //  - Excel hyperlink formula
-  //  - Markdown [text](url)
-  //  - Existing <a href="url">text</a> (sanitized/rebuilt)
-  //  - Plain URLs in text
-  // Fallback:
-  //  - If no URL found AND evidence is short label like "Table - PMC", link to PMCID article.
-  function linkifyEvidence(raw, pmcUrl){
+  // --- Evidence link logic ---
+  // Evidence can be:
+  //  1) Excel hyperlink (cell.l.Target) -> we use that
+  //  2) Plain URL inside text -> linkify
+  function linkifyPlainUrls(raw){
     raw = cleanVal(raw);
     if (!raw) return "—";
+    const urlRe = /(https?:\/\/[^\s<>"']+)/gi;
 
-    // 1) Excel HYPERLINK formula
-    const xl = parseExcelHyperlinkFormula(raw);
-    if (xl) return renderLink(xl.url, xl.label);
-
-    // 2) If contains HTML anchors, rebuild safely (keep surrounding text too)
-    // We'll replace each <a ...>...</a> with safe version.
-    let htmlOut = "";
-    let lastIdx = 0;
+    let out = "";
+    let last = 0;
     let found = false;
 
-    const anchorRe = /<a\s+[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-    raw.replace(anchorRe, (match, href, inner, offset) => {
-      found = true;
-      htmlOut += escapeHtml(raw.slice(lastIdx, offset));
-      htmlOut += renderLink(href, stripHtmlToText(inner));
-      lastIdx = offset + match.length;
-      return match;
-    });
-    if (found) {
-      htmlOut += escapeHtml(raw.slice(lastIdx));
-      return htmlOut || "—";
-    }
-
-    // 3) Markdown links [text](url)
-    const mdRe = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi;
-    let mdFound = false;
-    let mdOut = "";
-    lastIdx = 0;
-
-    raw.replace(mdRe, (match, text, url, offset) => {
-      mdFound = true;
-      mdOut += escapeHtml(raw.slice(lastIdx, offset));
-      mdOut += renderLink(url, text);
-      lastIdx = offset + match.length;
-      return match;
-    });
-    if (mdFound) {
-      mdOut += escapeHtml(raw.slice(lastIdx));
-      return mdOut || "—";
-    }
-
-    // 4) Plain URLs in text (linkify)
-    const urlRe = /(https?:\/\/[^\s<>"']+)/gi;
-    let urlFound = false;
-    let out = "";
-    lastIdx = 0;
-
     raw.replace(urlRe, (match, _g1, offset) => {
-      urlFound = true;
-
-      // Trim trailing punctuation that often sticks to URLs
+      found = true;
       let url = match;
       while (/[),.;:\]]$/.test(url)) url = url.slice(0, -1);
 
-      out += escapeHtml(raw.slice(lastIdx, offset));
+      out += escapeHtml(raw.slice(last, offset));
       out += renderLink(url, url);
 
       const tail = match.slice(url.length);
       if (tail) out += escapeHtml(tail);
 
-      lastIdx = offset + match.length;
+      last = offset + match.length;
       return match;
     });
 
-    if (urlFound) {
-      out += escapeHtml(raw.slice(lastIdx));
-      return out || "—";
+    out += escapeHtml(raw.slice(last));
+    return found ? out : escapeHtml(raw);
+  }
+
+  function evidenceHtml(evidenceText, evidenceHref, pmcUrl){
+    const t = cleanVal(evidenceText);
+
+    // If Excel provided hyperlink for Evidence cell -> clickable label (Table - PMC)
+    const href = sanitizeHttpUrl(evidenceHref);
+    if (href) return renderLink(href, t || "Open evidence link");
+
+    // Otherwise, linkify embedded URLs (if any)
+    const html = linkifyPlainUrls(t);
+
+    // Optional fallback: if evidence is short label but no URL found, link to PMCID
+    if (!href && pmcUrl && t && t.length <= 80 && /^(table|figure|fig\.?|supp|appendix|dataset|data)\b/i.test(t)) {
+      return renderLink(pmcUrl, t);
     }
 
-    // 5) Fallback: if evidence is short label (e.g., "Table - PMC"), link to PMCID article
-    const isShort = raw.length <= 80;
-    const looksLikeLabel = /^(table|figure|fig\.?|supp|appendix|dataset|data)\b/i.test(raw) || /^table\s*-\s*pmc/i.test(raw);
-    if (pmcUrl && isShort && looksLikeLabel) {
-      return renderLink(pmcUrl, raw);
-    }
-
-    return escapeHtml(raw);
+    return html || "—";
   }
 
   function detailsHtml(row) {
+    const pmcUrl = pmcUrlFromId(row[H.pmc]);
     const title = cleanVal(row[H.title]);
     const citation = cleanVal(row[H.citation]);
     const testedIsolate = cleanVal(row[H.testedIsolate]);
-    const evidenceRaw = row[H.evidence];
 
-    const pmcUrl = pmcUrlFromId(row[H.pmc]);
+    // We store these extra fields from XLSX parsing:
+    const evText = row.__evidence_text || row[H.evidence] || "";
+    const evHref = row.__evidence_href || "";
 
     const titleHtml = (pmcUrl && title)
       ? renderLink(pmcUrl, title)
       : escapeHtml(title || "—");
 
-    const safeCitation = escapeHtml(citation || "—");
-    const safeTested = escapeHtml(testedIsolate || "—");
-    const evidenceHtml = linkifyEvidence(evidenceRaw, pmcUrl);
+    const evHtml = evidenceHtml(evText, evHref, pmcUrl);
 
     return `
       <div class="detailsBox">
         <div><span class="k">Title:</span> ${titleHtml}</div>
-        <div style="margin-top:8px;"><span class="k">Citation:</span> ${safeCitation}</div>
-        <div style="margin-top:8px;"><span class="k">Tested isolate:</span> ${safeTested}</div>
-        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${evidenceHtml}</div>
+        <div style="margin-top:8px;"><span class="k">Citation:</span> ${escapeHtml(citation || "—")}</div>
+        <div style="margin-top:8px;"><span class="k">Tested isolate:</span> ${escapeHtml(testedIsolate || "—")}</div>
+        <div style="margin-top:8px;"><span class="k">Evidence:</span> ${evHtml}</div>
       </div>
     `;
   }
 
-  Papa.parse("data.csv", {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function (results) {
-      let rows = (results.data || []).filter(r =>
-        Object.values(r).some(v => cleanVal(v) !== "")
-      );
-      if (!rows.length) return;
+  // ✅ Read XLSX and preserve hyperlinks
+  async function loadXlsxRows(filename){
+    const res = await fetch(filename);
+    if (!res.ok) throw new Error(`Failed to load ${filename}: ${res.status}`);
+    const ab = await res.arrayBuffer();
+    const wb = XLSX.read(ab, { type: "array" });
 
-      // Fill-down PMCID if blank
-      let lastPMC = "";
-      rows.forEach(r => {
-        const v = cleanVal(r[H.pmc]);
-        if (v) lastPMC = v;
-        else r[H.pmc] = lastPMC;
-      });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    if (!ws || !ws["!ref"]) return [];
 
-      // Ensure expected headers exist on each row
-      const expected = Object.values(H);
-      rows.forEach(r => {
-        expected.forEach(h => { if (!(h in r)) r[h] = ""; });
-      });
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const headerRow = range.s.r;
 
-      const columns = [
-        {
-          title: "", data: null,
-          className: "details-control",
-          orderable: false,
-          searchable: false,
-          width: "24px",
-          defaultContent: "+",
-          render: () => "+"
-        },
-        ...VISIBLE_HEADERS.map(h => ({
-          title: h,
-          data: h,
-          render: function (data) {
-            if (h === H.pmc) return pmcLink(data);
-            return cleanVal(data);
-          }
-        })),
-        // Hidden searchable columns
-        { title: H.title, data: H.title, visible: false, searchable: true },
-        { title: H.citation, data: H.citation, visible: false, searchable: true },
-        { title: H.testedIsolate, data: H.testedIsolate, visible: false, searchable: true },
-        { title: H.evidence, data: H.evidence, visible: false, searchable: true }
-      ];
+    // Read headers from first row
+    const headers = [];
+    for (let c = range.s.c; c <= range.e.c; c++){
+      const addr = XLSX.utils.encode_cell({ r: headerRow, c });
+      const cell = ws[addr];
+      const h = cleanVal(cell ? (cell.w ?? cell.v) : "");
+      headers.push(h);
+    }
 
-      // Build THEAD (titles + filters)
-      const $titleRow = $("<tr/>");
-      const $filterRow = $("<tr class='filters'/>");
+    // Build row objects
+    const out = [];
+    for (let r = headerRow + 1; r <= range.e.r; r++){
+      const rowObj = {};
+      let any = false;
 
-      $titleRow.append(`<th></th>`);
-      $filterRow.append(`<th></th>`);
+      for (let c = range.s.c; c <= range.e.c; c++){
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = ws[addr];
+        const key = headers[c - range.s.c] || `__col_${c}`;
 
-      VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
-        const dtIdx = idxZeroBased + 1;
-        $titleRow.append(`<th>${h}</th>`);
+        const text = cleanVal(cell ? (cell.w ?? cell.v) : "");
+        if (text) any = true;
 
-        const hasDropdown = DROPDOWN_COLS.has(h);
-        $filterRow.append(`
-          <th>
-            <div class="colFilter">
-              <input type="text" placeholder="Search…" data-col-idx="${dtIdx}">
-              ${hasDropdown ? `
-                <select data-col-idx="${dtIdx}">
-                  <option value="">All options</option>
-                </select>
-              ` : ``}
-            </div>
-          </th>
-        `);
-      });
+        rowObj[key] = text;
 
-      $("#tbl thead").empty().append($titleRow).append($filterRow);
-
-      const table = $("#tbl").DataTable({
-        data: rows,
-        columns: columns,
-        responsive: false,
-        scrollX: true,
-        scrollCollapse: true,
-        fixedHeader: true,
-
-        pageLength: 25,
-        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-        dom: "Blfrtip",
-        stateSave: true,
-
-        buttons: [
-          { extend: "copy",  title: "pd-parameter-database" },
-          { extend: "csv",   title: "pd-parameter-database" },
-          { extend: "excel", title: "pd-parameter-database" },
-          { extend: "print", title: "pd-parameter-database" },
-          { extend: "colvis", text: "Columns" },
-          { extend: "colvisRestore", text: "Reset columns" }
-        ],
-
-        orderCellsTop: true,
-        order: [[ 1, "asc" ]]
-      });
-
-      const updateCount = () => {
-        const n = table.rows({ filter: "applied" }).count();
-        document.getElementById("rowCount").textContent = `${n} rows`;
-      };
-      updateCount();
-      table.on("draw", updateCount);
-
-      // Populate dropdowns
-      VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
-        const dtIdx = idxZeroBased + 1;
-        if (!DROPDOWN_COLS.has(h)) return;
-
-        const col = table.column(dtIdx);
-        let values = uniqueSorted(col.data().toArray());
-
-        const $selects = $(`select[data-col-idx="${dtIdx}"]`);
-        $selects.each(function () {
-          const $sel = $(this);
-          $sel.find("option:not(:first)").remove();
-          values.forEach(v => {
-            const safe = escapeHtml(v);
-            $sel.append(`<option value="${safe}">${safe}</option>`);
-          });
-        });
-      });
-
-      // Column filter handlers
-      $(document).on("keyup change", 'input[data-col-idx]', function () {
-        const idx = Number(this.getAttribute("data-col-idx"));
-        const col = table.column(idx);
-
-        const $cell = $(this).closest(".colFilter");
-        $cell.find('select[data-col-idx]').val("");
-
-        col.search(this.value || "", false, true).draw();
-      });
-
-      $(document).on("change", 'select[data-col-idx]', function () {
-        const idx = Number(this.getAttribute("data-col-idx"));
-        const col = table.column(idx);
-        const val = $(this).val();
-
-        const $cell = $(this).closest(".colFilter");
-        $cell.find('input[data-col-idx]').val("");
-
-        col.search(
-          val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "",
-          true,
-          false
-        ).draw();
-      });
-
-      // Global search helpers
-      const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
-      const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
-      const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
-      const idxSpecies = VISIBLE_HEADERS.indexOf(H.species) + 1;
-
-      document.getElementById("pmcGlobal").addEventListener("input", (e) => {
-        table.column(idxPMC).search(e.target.value || "", false, true).draw();
-      });
-      document.getElementById("paramGlobal").addEventListener("input", (e) => {
-        table.column(idxParam).search(e.target.value || "", false, true).draw();
-      });
-      document.getElementById("drugGlobal").addEventListener("input", (e) => {
-        table.column(idxDrug).search(e.target.value || "", false, true).draw();
-      });
-      document.getElementById("speciesGlobal").addEventListener("input", (e) => {
-        table.column(idxSpecies).search(e.target.value || "", false, true).draw();
-      });
-
-      document.getElementById("titleGlobal").addEventListener("input", (e) => {
-        table.search(e.target.value || "", false, true).draw();
-      });
-
-      function toggleRow(tr){
-        const row = table.row(tr);
-        const $tr = $(tr);
-        const $ctrl = $tr.find("td.details-control");
-        if (!$ctrl.length) return;
-
-        if (row.child.isShown()) {
-          row.child.hide();
-          $tr.removeClass("shown");
-          $ctrl.text("+");
-        } else {
-          row.child(detailsHtml(row.data())).show();
-          $tr.addClass("shown");
-          $ctrl.text("–");
+        // ✅ Capture Evidence hyperlink if this is Evidence column
+        if (key === H.evidence && cell && cell.l && cell.l.Target) {
+          rowObj.__evidence_text = text;
+          rowObj.__evidence_href = cell.l.Target;
         }
       }
 
-      $("#tbl tbody").on("click", "td.details-control", function (e) {
-        e.stopPropagation();
-        toggleRow($(this).closest("tr"));
-      });
-
-      $("#tbl tbody").on("click", "tr", function (e) {
-        if ($(this).hasClass("child")) return;
-        if ($(e.target).closest("a, button, input, select, textarea, label").length) return;
-        toggleRow(this);
-      });
-
-      document.getElementById("clearAll").addEventListener("click", () => {
-        table.search("");
-        table.columns().search("");
-
-        $("#tbl thead tr.filters input").val("");
-        $("#tbl thead tr.filters select").val("");
-
-        document.getElementById("titleGlobal").value = "";
-        document.getElementById("pmcGlobal").value = "";
-        document.getElementById("paramGlobal").value = "";
-        document.getElementById("drugGlobal").value = "";
-        document.getElementById("speciesGlobal").value = "";
-
-        table.rows().every(function () {
-          if (this.child.isShown()) this.child.hide();
-        });
-        $("#tbl tbody tr").removeClass("shown");
-        $("#tbl tbody td.details-control").text("+");
-
-        table.draw();
-      });
+      if (any) out.push(rowObj);
     }
-  });
+
+    return out;
+  }
+
+  function initTable(rows){
+    // Fill-down PMCID if blank
+    let lastPMC = "";
+    rows.forEach(r => {
+      const v = cleanVal(r[H.pmc]);
+      if (v) lastPMC = v;
+      else r[H.pmc] = lastPMC;
+    });
+
+    // Ensure expected headers exist
+    const expected = Object.values(H);
+    rows.forEach(r => {
+      expected.forEach(h => { if (!(h in r)) r[h] = ""; });
+      if (!("__evidence_text" in r)) r.__evidence_text = r[H.evidence] || "";
+      if (!("__evidence_href" in r)) r.__evidence_href = "";
+    });
+
+    const columns = [
+      {
+        title: "", data: null,
+        className: "details-control",
+        orderable: false,
+        searchable: false,
+        width: "24px",
+        defaultContent: "+",
+        render: () => "+"
+      },
+      ...VISIBLE_HEADERS.map(h => ({
+        title: h,
+        data: h,
+        render: function (data) {
+          if (h === H.pmc) return pmcLink(data);
+          return cleanVal(data);
+        }
+      })),
+      // Hidden searchable columns
+      { title: H.title, data: H.title, visible: false, searchable: true },
+      { title: H.citation, data: H.citation, visible: false, searchable: true },
+      { title: H.testedIsolate, data: H.testedIsolate, visible: false, searchable: true },
+      { title: H.evidence, data: H.evidence, visible: false, searchable: true }
+    ];
+
+    // Build THEAD (titles + filters)
+    const $titleRow = $("<tr/>");
+    const $filterRow = $("<tr class='filters'/>");
+
+    $titleRow.append(`<th></th>`);
+    $filterRow.append(`<th></th>`);
+
+    VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
+      const dtIdx = idxZeroBased + 1;
+      $titleRow.append(`<th>${h}</th>`);
+
+      const hasDropdown = DROPDOWN_COLS.has(h);
+      $filterRow.append(`
+        <th>
+          <div class="colFilter">
+            <input type="text" placeholder="Search…" data-col-idx="${dtIdx}">
+            ${hasDropdown ? `
+              <select data-col-idx="${dtIdx}">
+                <option value="">All options</option>
+              </select>
+            ` : ``}
+          </div>
+        </th>
+      `);
+    });
+
+    $("#tbl thead").empty().append($titleRow).append($filterRow);
+
+    const table = $("#tbl").DataTable({
+      data: rows,
+      columns: columns,
+      responsive: false,
+      scrollX: true,
+      scrollCollapse: true,
+      fixedHeader: true,
+
+      pageLength: 25,
+      lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+      dom: "Blfrtip",
+      stateSave: true,
+
+      buttons: [
+        { extend: "copy",  title: "pd-parameter-database" },
+        { extend: "csv",   title: "pd-parameter-database" },
+        { extend: "excel", title: "pd-parameter-database" },
+        { extend: "print", title: "pd-parameter-database" },
+        { extend: "colvis", text: "Columns" },
+        { extend: "colvisRestore", text: "Reset columns" }
+      ],
+
+      orderCellsTop: true,
+      order: [[ 1, "asc" ]]
+    });
+
+    // Row count badge
+    const updateCount = () => {
+      const n = table.rows({ filter: "applied" }).count();
+      document.getElementById("rowCount").textContent = `${n} rows`;
+    };
+    updateCount();
+    table.on("draw", updateCount);
+
+    // Populate dropdowns
+    VISIBLE_HEADERS.forEach((h, idxZeroBased) => {
+      const dtIdx = idxZeroBased + 1;
+      if (!DROPDOWN_COLS.has(h)) return;
+
+      const col = table.column(dtIdx);
+      let values = uniqueSorted(col.data().toArray());
+
+      const $selects = $(`select[data-col-idx="${dtIdx}"]`);
+      $selects.each(function () {
+        const $sel = $(this);
+        $sel.find("option:not(:first)").remove();
+        values.forEach(v => {
+          const safe = escapeHtml(v);
+          $sel.append(`<option value="${safe}">${safe}</option>`);
+        });
+      });
+    });
+
+    // Column filters
+    $(document).on("keyup change", 'input[data-col-idx]', function () {
+      const idx = Number(this.getAttribute("data-col-idx"));
+      const col = table.column(idx);
+
+      const $cell = $(this).closest(".colFilter");
+      $cell.find('select[data-col-idx]').val("");
+
+      col.search(this.value || "", false, true).draw();
+    });
+
+    $(document).on("change", 'select[data-col-idx]', function () {
+      const idx = Number(this.getAttribute("data-col-idx"));
+      const col = table.column(idx);
+      const val = $(this).val();
+
+      const $cell = $(this).closest(".colFilter");
+      $cell.find('input[data-col-idx]').val("");
+
+      col.search(val ? `^${$.fn.dataTable.util.escapeRegex(val)}$` : "", true, false).draw();
+    });
+
+    // Global search helpers
+    const idxPMC     = VISIBLE_HEADERS.indexOf(H.pmc) + 1;
+    const idxParam   = VISIBLE_HEADERS.indexOf(H.parameter) + 1;
+    const idxDrug    = VISIBLE_HEADERS.indexOf(H.drug) + 1;
+    const idxSpecies = VISIBLE_HEADERS.indexOf(H.species) + 1;
+
+    document.getElementById("pmcGlobal").addEventListener("input", (e) => {
+      table.column(idxPMC).search(e.target.value || "", false, true).draw();
+    });
+    document.getElementById("paramGlobal").addEventListener("input", (e) => {
+      table.column(idxParam).search(e.target.value || "", false, true).draw();
+    });
+    document.getElementById("drugGlobal").addEventListener("input", (e) => {
+      table.column(idxDrug).search(e.target.value || "", false, true).draw();
+    });
+    document.getElementById("speciesGlobal").addEventListener("input", (e) => {
+      table.column(idxSpecies).search(e.target.value || "", false, true).draw();
+    });
+
+    document.getElementById("titleGlobal").addEventListener("input", (e) => {
+      table.search(e.target.value || "", false, true).draw();
+    });
+
+    function toggleRow(tr){
+      const row = table.row(tr);
+      const $tr = $(tr);
+      const $ctrl = $tr.find("td.details-control");
+      if (!$ctrl.length) return;
+
+      if (row.child.isShown()) {
+        row.child.hide();
+        $tr.removeClass("shown");
+        $ctrl.text("+");
+      } else {
+        row.child(detailsHtml(row.data())).show();
+        $tr.addClass("shown");
+        $ctrl.text("–");
+      }
+    }
+
+    $("#tbl tbody").on("click", "td.details-control", function (e) {
+      e.stopPropagation();
+      toggleRow($(this).closest("tr"));
+    });
+
+    $("#tbl tbody").on("click", "tr", function (e) {
+      if ($(this).hasClass("child")) return;
+      if ($(e.target).closest("a, button, input, select, textarea, label").length) return;
+      toggleRow(this);
+    });
+
+    document.getElementById("clearAll").addEventListener("click", () => {
+      table.search("");
+      table.columns().search("");
+
+      $("#tbl thead tr.filters input").val("");
+      $("#tbl thead tr.filters select").val("");
+
+      document.getElementById("titleGlobal").value = "";
+      document.getElementById("pmcGlobal").value = "";
+      document.getElementById("paramGlobal").value = "";
+      document.getElementById("drugGlobal").value = "";
+      document.getElementById("speciesGlobal").value = "";
+
+      table.rows().every(function () {
+        if (this.child.isShown()) this.child.hide();
+      });
+      $("#tbl tbody tr").removeClass("shown");
+      $("#tbl tbody td.details-control").text("+");
+
+      table.draw();
+    });
+  }
+
+  // ---- boot ----
+  (async () => {
+    try {
+      const rows = await loadXlsxRows(XLSX_FILE);
+      if (!rows.length) {
+        alert("No rows loaded. Check the sheet and header row.");
+        return;
+      }
+      initTable(rows);
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  })();
+
 })();
 </script>
 
