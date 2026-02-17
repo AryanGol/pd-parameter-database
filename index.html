@@ -314,9 +314,15 @@
   };
 
   const VISIBLE_HEADERS = [
-    H.pmc, H.parameter, H.value, H.unit,
-    H.species, H.strain, H.source, H.status, H.mode, H.drug
-  ];
+  H.pmc,
+  H.species,
+  H.drug,
+  H.parameter,
+  // then the rest (unchanged)
+  H.value, H.unit,
+  H.strain, H.source, H.status, H.mode
+];
+
 
   const DROPDOWN_COLS = new Set([
     H.parameter, H.unit, H.species, H.strain, H.source, H.status, H.mode, H.drug
@@ -768,4 +774,5 @@
 
 </body>
 </html>
+
 
